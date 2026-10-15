@@ -2,18 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
-
-type NewsItem = {
-    id: string;
-    title: string;
-    category_name: string;
-    published_at: string;
-    is_featured: boolean;
-    is_breaking: boolean;
-    view_count: number;
-    source: string;
-};
+import { deleteNews, listNewsForAdmin, setNewsFlag, type AdminNewsItem as NewsItem } from "../actions";
 
 export default function NotasListPage() {
     const [posts, setPosts] = useState<NewsItem[]>([]);
@@ -22,23 +11,16 @@ export default function NotasListPage() {
 
     useEffect(() => {
         async function load() {
-            const supabase = createClient();
-            const { data } = await supabase
-                .from("news")
-                .select(
-                    "id, title, category_name, published_at, is_featured, is_breaking, view_count, source"
-                )
-                .order("published_at", { ascending: false })
-                .limit(100);
-            setPosts(data || []);
+            const result = await listNewsForAdmin();
+            setPosts("posts" in result ? result.posts : []);
             setLoading(false);
         }
         load();
     }, []);
 
     const toggleFeatured = async (id: string, current: boolean) => {
-        const supabase = createClient();
-        await supabase.from("news").update({ is_featured: !current }).eq("id", id);
+        const result = await setNewsFlag(id, "is_featured", !current);
+        if (result.error) return alert(result.error);
         setPosts(
             posts.map((p) =>
                 p.id === id ? { ...p, is_featured: !current } : p
@@ -47,8 +29,8 @@ export default function NotasListPage() {
     };
 
     const toggleBreaking = async (id: string, current: boolean) => {
-        const supabase = createClient();
-        await supabase.from("news").update({ is_breaking: !current }).eq("id", id);
+        const result = await setNewsFlag(id, "is_breaking", !current);
+        if (result.error) return alert(result.error);
         setPosts(
             posts.map((p) =>
                 p.id === id ? { ...p, is_breaking: !current } : p
@@ -58,8 +40,8 @@ export default function NotasListPage() {
 
     const deletePost = async (id: string) => {
         if (!confirm("¿Seguro que deseas eliminar esta noticia? Esta acción no se puede deshacer.")) return;
-        const supabase = createClient();
-        await supabase.from("news").delete().eq("id", id);
+        const result = await deleteNews(id);
+        if (result.error) return alert(result.error);
         setPosts(posts.filter((p) => p.id !== id));
     };
 

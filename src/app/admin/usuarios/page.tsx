@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { addUserAction, removeUserAction } from "./actions";
+import { addUserAction, changePasswordAction, listUsersAction, removeUserAction } from "./actions";
 
 type AdminUser = {
   id: string;
@@ -26,32 +25,20 @@ export default function UsuariosPage() {
   const [showForm, setShowForm] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const fetchUsers = useCallback(async () => {
-    const supabase = createClient();
-    const { data, error: fetchError } = await supabase
-      .from("admin_users")
-      .select("*")
-      .order("created_at", { ascending: true });
+    const result = await listUsersAction();
 
-    if (fetchError) {
-      setError("Error al cargar usuarios: " + fetchError.message);
+    if ("error" in result) {
+      setError("Error al cargar usuarios: " + result.error);
       setLoading(false);
       return;
     }
 
-    setUsers(data as AdminUser[]);
-
-    // Determine current user's role
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user?.email) {
-      const userEmail = user.email.toLowerCase();
-      const current = (data as AdminUser[]).find(
-        (u) => u.email === userEmail
-      );
-      setCurrentUserRole(current?.role ?? null);
-    }
-
+    setUsers(result.users);
+    setCurrentUserRole(result.currentUserRole);
+    setCurrentUserId(result.currentUserId);
     setLoading(false);
   }, []);
 
@@ -97,6 +84,25 @@ export default function UsuariosPage() {
     }
   }
 
+  async function handleChangePassword(id: string, name: string) {
+    const password = prompt(`Nueva contraseña para ${name} (mínimo 8 caracteres):`);
+    if (!password) return;
+
+    setError(null);
+    setSuccess(null);
+
+    const formData = new FormData();
+    formData.set("id", id);
+    formData.set("password", password);
+    const result = await changePasswordAction(formData);
+
+    if (result.error) {
+      setError(result.error);
+    } else {
+      setSuccess(`Contraseña de ${name} actualizada`);
+    }
+  }
+
   const isOwner = currentUserRole === "owner";
 
   return (
@@ -136,9 +142,9 @@ export default function UsuariosPage() {
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Nuevo Usuario</h2>
           <p className="text-sm text-gray-500 mb-4">
-            El usuario debe tener una cuenta en Supabase Auth (registrada con correo y contrasena).
+            Comparte la contraseña con el usuario; podrá cambiarla desde esta pagina.
           </p>
-          <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+          <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">Correo</label>
               <input
@@ -156,6 +162,18 @@ export default function UsuariosPage() {
                 type="text"
                 required
                 placeholder="Nombre completo"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">Contraseña</label>
+              <input
+                name="password"
+                type="password"
+                required
+                minLength={8}
+                autoComplete="new-password"
+                placeholder="Minimo 8 caracteres"
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
@@ -197,7 +215,7 @@ export default function UsuariosPage() {
             <p className="text-gray-400 mb-2">No hay usuarios registrados</p>
             <p className="text-sm text-gray-400">
               Crea la tabla <code className="bg-gray-100 px-1.5 py-0.5 rounded">admin_users</code> en
-              Supabase y agrega el primer usuario.
+              phpMyAdmin y agrega el primer usuario.
             </p>
           </div>
         ) : (
@@ -222,7 +240,16 @@ export default function UsuariosPage() {
                     <span className="text-xs text-gray-400 hidden sm:block">
                       {new Date(u.created_at).toLocaleDateString("es-MX", { month: "short", day: "numeric", year: "numeric" })}
                     </span>
-                    {isOwner && (
+                    {(isOwner || u.id === currentUserId) && (
+                      <button
+                        onClick={() => handleChangePassword(u.id, u.display_name)}
+                        className="text-blue-500 hover:text-blue-700 text-sm cursor-pointer ml-2 transition-colors"
+                        title="Cambiar contraseña"
+                      >
+                        Contraseña
+                      </button>
+                    )}
+                    {isOwner && u.id !== currentUserId && (
                       <button
                         onClick={() => handleRemove(u.id, u.display_name)}
                         className="text-red-400 hover:text-red-600 text-sm cursor-pointer ml-2 transition-colors"
@@ -243,8 +270,8 @@ export default function UsuariosPage() {
       <div className="mt-6 bg-blue-50 border border-blue-200 rounded-xl p-5">
         <h3 className="text-sm font-bold text-blue-800 mb-2">Como agregar un nuevo usuario</h3>
         <ol className="text-sm text-blue-700 space-y-1.5 list-decimal list-inside">
-          <li>El usuario debe registrarse primero en Supabase Auth (correo y contrasena)</li>
-          <li>Un propietario agrega el correo del usuario en esta pagina</li>
+          <li>Un propietario agrega el correo, nombre, rol y una contrasena en esta pagina</li>
+          <li>El usuario puede cambiar su contrasena con el boton &quot;Contraseña&quot;</li>
           <li>El usuario puede iniciar sesion en <code className="bg-blue-100 px-1 rounded">/admin/login</code></li>
         </ol>
       </div>

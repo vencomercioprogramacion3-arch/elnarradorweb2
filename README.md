@@ -5,13 +5,13 @@ el sitio público (noticias, revistas, búsqueda) y el panel de administración
 en `/admin`.
 
 - **Producción:** https://elnarradordemexico.com
-- **Stack:** Next.js 15 (App Router) · React 18 · TypeScript · Tailwind CSS v4 · Supabase · Cloudflare (vía OpenNext)
+- **Stack:** Next.js 15 (App Router) · React 18 · TypeScript · Tailwind CSS v4 · MySQL (Neubox) · Cloudflare (vía OpenNext)
 
 ## Requisitos
 
 - Node.js 20+
 - npm
-- Acceso al proyecto de Supabase (URL y claves)
+- Acceso a la base MySQL de Neubox (ver [`neubox/README.md`](./neubox/README.md))
 
 ## Arranque local
 
@@ -46,11 +46,11 @@ El sitio queda en http://localhost:3000 y el panel en http://localhost:3000/admi
 ```
 src/
 ├── app/          # Rutas, layouts, metadata, server actions (App Router)
-│   ├── admin/    # Panel de administración (protegido por Supabase Auth)
+│   ├── admin/    # Panel de administración (login propio, usuarios en `admin_users`)
 │   └── api/      # Route handlers (p.ej. /api/migrate)
 ├── components/   # UI reutilizable del sitio público (news, magazines, seo, ads, ui)
-├── lib/          # Acceso a datos: clientes Supabase, queries, migración WordPress
-└── middleware.ts # Propaga el pathname y refresca la sesión de Supabase
+├── lib/          # Acceso a datos: MySQL (`db/`), sesión (`auth/`), subidas (`storage/`), migración WordPress
+└── middleware.ts # Propaga el pathname para el layout
 ```
 
 Las carpetas `deploy/`, `deploy-pages/`, `deploy_me/`, `.next/` y `.open-next/`
@@ -61,7 +61,8 @@ son salida generada — no se editan ni se commitean.
 | Documento | Contenido |
 |---|---|
 | [`DEPLOYMENT.md`](./DEPLOYMENT.md) | Cómo desplegar a Cloudflare, secrets y troubleshooting |
-| [`docs/DATABASE.md`](./docs/DATABASE.md) | Esquema de Supabase: tablas, storage, RLS |
+| [`docs/DATABASE.md`](./docs/DATABASE.md) | Esquema de la base MySQL y almacenamiento de archivos |
+| [`neubox/README.md`](./neubox/README.md) | Configurar MySQL, archivos y migrar los datos desde Supabase |
 | [`CLAUDE.md`](./CLAUDE.md) | Contexto general del proyecto (también útil para humanos) |
 | `.env.example` | Variables de entorno requeridas y su propósito |
 
@@ -74,8 +75,8 @@ son salida generada — no se editan ni se commitean.
 - **Categorías**: fijas en código (`src/app/[category]/page.tsx`) y en la tabla
   `categories`.
 
-La base de datos Supabase es compartida con la app móvil de El Narrador;
-ver [`docs/DATABASE.md`](./docs/DATABASE.md) antes de tocar el esquema.
+El sitio usa su propia base MySQL en Neubox; la app móvil de El Narrador
+sigue usando Supabase, así que el contenido ya no se comparte entre ambos.
 
 ## Videos de YouTube en la portada
 

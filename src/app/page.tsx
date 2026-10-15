@@ -4,8 +4,8 @@ import {
   getLatestNews,
   getFeaturedNews,
   getMostViewed,
-} from "@/lib/supabase/queries";
-import { getMagazines } from "@/lib/supabase/magazines";
+} from "@/lib/db/queries";
+import { getMagazines } from "@/lib/db/magazines";
 import HeroBanner from "@/components/news/HeroBanner";
 import FeaturedHero from "@/components/news/FeaturedHero";
 import ArticleGrid from "@/components/news/ArticleGrid";

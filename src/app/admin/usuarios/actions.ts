@@ -1,49 +1,77 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
-import { addAdminUser, removeAdminUser, getAdminUserByEmail } from "@/lib/supabase/admin-users";
+import { hashPassword, requireAdmin } from "@/lib/auth/session";
+import { addAdminUser, getAdminUsers, removeAdminUser, setAdminPassword, type AdminUser } from "@/lib/db/admin-users";
+
+const MIN_PASSWORD_LENGTH = 8;
+const ROLES: AdminUser["role"][] = ["owner", "editor", "writer"];
+
+export async function listUsersAction(): Promise<
+  { error: string } | { users: AdminUser[]; currentUserId: string; currentUserRole: AdminUser["role"] }
+> {
+  const auth = await requireAdmin();
+  if ("error" in auth) return { error: auth.error };
+  const users = await getAdminUsers();
+  return { users, currentUserId: auth.user.id, currentUserRole: auth.user.role };
+}
 
 export async function addUserAction(formData: FormData) {
-  // Verify the caller is an authorized admin
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user?.email) return { error: "No autorizado" };
-
-  const caller = await getAdminUserByEmail(user.email);
-  if (!caller || caller.role !== "owner") {
+  const auth = await requireAdmin();
+  if ("error" in auth) return { error: auth.error };
+  if (auth.user.role !== "owner") {
     return { error: "Solo los propietarios pueden agregar usuarios" };
   }
 
-  const email = formData.get("email") as string;
-  const displayName = formData.get("display_name") as string;
-  const role = formData.get("role") as "owner" | "editor" | "writer";
+  const email = String(formData.get("email") ?? "").trim();
+  const displayName = String(formData.get("display_name") ?? "").trim();
+  const role = formData.get("role") as AdminUser["role"];
+  const password = String(formData.get("password") ?? "");
 
-  if (!email || !displayName || !role) {
+  if (!email || !displayName || !role || !password) {
     return { error: "Todos los campos son obligatorios" };
   }
+  if (!ROLES.includes(role)) return { error: "Rol no válido" };
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return { error: `La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres` };
+  }
 
-  const result = await addAdminUser(email, displayName, role);
+  const result = await addAdminUser(email, displayName, role, await hashPassword(password));
   if (result.error) return { error: result.error };
 
   revalidatePath("/admin/usuarios");
   return { success: true };
 }
 
-export async function removeUserAction(formData: FormData) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user?.email) return { error: "No autorizado" };
+/** Un propietario puede cambiar la contraseña de cualquiera; los demás solo la suya. */
+export async function changePasswordAction(formData: FormData) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return { error: auth.error };
 
-  const caller = await getAdminUserByEmail(user.email);
-  if (!caller || caller.role !== "owner") {
+  const id = String(formData.get("id") ?? "");
+  const password = String(formData.get("password") ?? "");
+  if (id !== auth.user.id && auth.user.role !== "owner") {
+    return { error: "Solo los propietarios pueden cambiar contraseñas de otros usuarios" };
+  }
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return { error: `La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres` };
+  }
+
+  await setAdminPassword(id, await hashPassword(password));
+  return { success: true };
+}
+
+export async function removeUserAction(formData: FormData) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return { error: auth.error };
+  if (auth.user.role !== "owner") {
     return { error: "Solo los propietarios pueden eliminar usuarios" };
   }
 
   const id = formData.get("id") as string;
 
   // Prevent owner from removing themselves
-  if (id === caller.id) {
+  if (id === auth.user.id) {
     return { error: "No puedes eliminarte a ti mismo" };
   }
 

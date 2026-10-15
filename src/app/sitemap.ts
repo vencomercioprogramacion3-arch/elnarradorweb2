@@ -1,25 +1,16 @@
 import type { MetadataRoute } from "next";
-import { createClient } from "@supabase/supabase-js";
+import { query } from "@/lib/db/mysql";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://elnarradordemexico.com";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  type Entry = { id: string; published_at: string };
 
-  // Fetch all news articles
-  const { data: articles } = await supabase
-    .from("news")
-    .select("id, published_at, category_slug")
-    .order("published_at", { ascending: false });
-
-  // Fetch all magazines
-  const { data: magazines } = await supabase
-    .from("magazines")
-    .select("id, published_at")
-    .order("published_at", { ascending: false });
+  // Fetch all news articles and magazines; a DB failure only drops them from the sitemap
+  const [articles, magazines] = await Promise.all([
+    query<Entry>("SELECT id, published_at FROM news ORDER BY published_at DESC").catch(() => [] as Entry[]),
+    query<Entry>("SELECT id, published_at FROM magazines ORDER BY published_at DESC").catch(() => [] as Entry[]),
+  ]);
 
   const categories = [
     "mexico", "economia", "cultura", "internacional", "deportes",

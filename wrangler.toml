@@ -9,5 +9,11 @@ pages_build_output_dir = ".open-next/cloudflare"
 [assets]
 directory = ".open-next/assets"
 
-[vars]
-NEXT_PUBLIC_SUPABASE_URL = "https://fewwvcrfhdgnpfjyadev.supabase.co"
+# Base MySQL de Neubox. Las credenciales (MYSQL_*, AUTH_SECRET, NEUBOX_*) se
+# configuran en el dashboard de Cloudflare; ver neubox/README.md.
+# Opcional pero recomendado: Hyperdrive. Crear con
+#   npx wrangler hyperdrive create narrador-mysql --connection-string="mysql://..."
+# y descomentar con el id devuelto:
+# [[hyperdrive]]
+# binding = "HYPERDRIVE"
+# id = "<HYPERDRIVE_ID>"

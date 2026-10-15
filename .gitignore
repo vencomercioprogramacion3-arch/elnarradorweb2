@@ -52,3 +52,10 @@ next-env.d.ts
 /deploy/
 /deploy-pages/
 /deploy_me/
+
+# Neubox: secretos y exportaciones de datos
+neubox/media/config.php
+neubox/media/uploads/*
+!neubox/media/uploads/.htaccess
+neubox/export/
+.wrangler/

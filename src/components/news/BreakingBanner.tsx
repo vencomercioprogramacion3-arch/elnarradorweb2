@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { NewsArticle } from "@/lib/supabase/queries";
+import type { NewsArticle } from "@/lib/db/queries";
 
 type BreakingBannerProps = {
   articles: NewsArticle[];

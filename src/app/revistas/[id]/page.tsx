@@ -1,4 +1,4 @@
-import { getMagazineById } from "@/lib/supabase/magazines";
+import { getMagazineById } from "@/lib/db/magazines";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import ShareButtonsMagazine from "./ShareButtonsMagazine";

@@ -1,26 +1,27 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { query, queryOne } from "@/lib/db/mysql";
+
+type Counts = { newsCount: number; featuredCount: number; breakingCount: number; magazinesCount: number };
+type RecentNews = { id: string; title: string; category_name: string; published_at: string; source: string };
 
 export default async function AdminDashboard() {
-    const supabase = await createClient();
-
-    const [
-        { count: newsCount },
-        { count: magazinesCount },
-        { count: featuredCount },
-        { count: breakingCount },
-        { data: recentNews },
-    ] = await Promise.all([
-        supabase.from("news").select("*", { count: "exact", head: true }),
-        supabase.from("magazines").select("*", { count: "exact", head: true }),
-        supabase.from("news").select("*", { count: "exact", head: true }).eq("is_featured", true),
-        supabase.from("news").select("*", { count: "exact", head: true }).eq("is_breaking", true),
-        supabase
-            .from("news")
-            .select("id, title, category_name, published_at, source")
-            .order("published_at", { ascending: false })
-            .limit(5),
+    const [counts, recentNews] = await Promise.all([
+        queryOne<Counts>(
+            `SELECT
+                COUNT(*) AS newsCount,
+                COALESCE(SUM(is_featured = 1), 0) AS featuredCount,
+                COALESCE(SUM(is_breaking = 1), 0) AS breakingCount,
+                (SELECT COUNT(*) FROM magazines) AS magazinesCount
+             FROM news`
+        ),
+        query<RecentNews>(
+            "SELECT id, title, category_name, published_at, source FROM news ORDER BY published_at DESC LIMIT 5"
+        ),
     ]);
+    const newsCount = Number(counts?.newsCount ?? 0);
+    const magazinesCount = Number(counts?.magazinesCount ?? 0);
+    const featuredCount = Number(counts?.featuredCount ?? 0);
+    const breakingCount = Number(counts?.breakingCount ?? 0);
 
     const stats = [
         { label: "Total Notas", value: newsCount || 0, icon: "📰", color: "bg-blue-50 border-blue-200 text-blue-700" },

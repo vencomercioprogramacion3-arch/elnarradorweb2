@@ -56,7 +56,8 @@
   - Owns login/logout
   - Owns news upload flow
   - Owns magazine upload flow
-  - Uses privileged storage/database operations through the admin Supabase client
+  - Owns admin news list actions (list, feature/breaking toggles, delete)
+  - Writes to MySQL via `src/lib/db/mysql.ts` and uploads files via `src/lib/storage/neubox.ts`
 
 ## Metadata And SEO Behavior
 - `src/app/layout.tsx` defines site-wide metadata defaults.
@@ -72,9 +73,8 @@
 
 ## Auth And Guard Behavior
 - `src/app/layout.tsx` reads `x-invoke-path` to decide whether to render public navbar/footer.
-- `src/app/admin/layout.tsx` protects admin routes by checking the current Supabase user.
-- `src/app/admin/layout.tsx` optionally restricts access to `ADMIN_EMAIL`.
-- `src/middleware.ts` refreshes the session and makes the current path visible to server components.
+- `src/app/admin/layout.tsx` protects admin routes with `getCurrentAdmin()` (signed cookie + `admin_users` row).
+- `src/middleware.ts` makes the current path visible to server components.
 
 ## Notes On Dynamic Routes
 - `src/app/[category]/page.tsx` maps category slugs to UI labels and metadata.
@@ -87,4 +87,4 @@
 - Read `src/middleware.ts`
 - Read `src/app/admin/layout.tsx`
 - Read `src/app/admin/actions.ts`
-- Read the relevant query module under `src/lib/supabase/`
+- Read the relevant query module under `src/lib/db/`

@@ -1,4 +1,4 @@
-import { getMagazines } from "@/lib/supabase/magazines";
+import { getMagazines } from "@/lib/db/magazines";
 import MagazineCard from "@/components/magazines/MagazineCard";
 import type { Metadata } from "next";
 

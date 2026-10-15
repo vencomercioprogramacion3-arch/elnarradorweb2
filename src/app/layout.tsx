@@ -103,7 +103,7 @@ export default function RootLayout({
           as="image"
           fetchPriority="high"
         />
-        {/* Preconnect to Supabase for faster API/image loading */}
+        {/* Preconnect to Supabase storage: older images and PDFs are still hosted there */}
         <link rel="preconnect" href="https://fewwvcrfhdgnpfjyadev.supabase.co" />
         <link rel="dns-prefetch" href="https://fewwvcrfhdgnpfjyadev.supabase.co" />
         {/* Preconnect to WordPress CDN for migrated images */}

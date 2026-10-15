@@ -1,4 +1,4 @@
-import { searchNews } from "@/lib/supabase/queries";
+import { searchNews } from "@/lib/db/queries";
 import ArticleCard from "@/components/news/ArticleCard";
 
 type Props = {

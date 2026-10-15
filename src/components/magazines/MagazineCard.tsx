@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import type { Magazine } from "@/lib/supabase/magazines";
+import type { Magazine } from "@/lib/db/magazines";
 
 type MagazineCardProps = {
   magazine: Magazine;

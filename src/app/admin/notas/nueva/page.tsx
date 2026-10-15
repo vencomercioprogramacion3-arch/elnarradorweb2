@@ -2,8 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import DOMPurify from "dompurify";
-import { uploadNews } from "../../actions";
-import { createClient } from "@/lib/supabase/client";
+import { getCurrentAdminName, uploadNews } from "../../actions";
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // debe coincidir con el límite del server action
 
@@ -185,18 +184,8 @@ export default function NuevaNotaPage() {
     /* auto-fill author from admin_users */
     useEffect(() => {
         async function loadAuthor() {
-            const supabase = createClient();
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user?.email) {
-                const { data } = await supabase
-                    .from("admin_users")
-                    .select("display_name")
-                    .eq("email", user.email.toLowerCase())
-                    .single();
-                if (data?.display_name) {
-                    setAuthor(data.display_name);
-                }
-            }
+            const name = await getCurrentAdminName();
+            if (name) setAuthor(name);
         }
         loadAuthor();
     }, []);
