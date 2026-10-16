@@ -2,8 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { getAdminUserByEmail } from "@/lib/supabase/admin-users";
+import { getCurrentAdmin } from "@/lib/auth/session";
 import { logoutAdmin } from "./actions";
 
 export default async function AdminLayout({
@@ -19,31 +18,11 @@ export default async function AdminLayout({
 
     // Only protect non-login routes
     if (!isLoginPage) {
-        const supabase = await createClient();
-        const {
-            data: { user },
-            error,
-        } = await supabase.auth.getUser();
-
-        if (error || !user) {
+        const adminUser = await getCurrentAdmin();
+        if (!adminUser) {
             redirect("/admin/login");
         }
-
-        const userEmail = user.email?.toLowerCase() ?? "";
-
-        // Check admin_users table first
-        const adminUser = await getAdminUserByEmail(userEmail);
-
-        if (adminUser) {
-            adminDisplayName = adminUser.display_name;
-        } else {
-            // Fallback: check legacy ADMIN_EMAIL env var
-            const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
-            if (!adminEmail || userEmail !== adminEmail) {
-                redirect("/admin/login");
-            }
-            adminDisplayName = user.email ?? "Admin";
-        }
+        adminDisplayName = adminUser.display_name;
     }
 
     // Render login page without admin chrome

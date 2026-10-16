@@ -4,34 +4,34 @@
 - `src/lib/` contains the data-access layer and external integration code.
 - This is the main place to inspect before changing queries, storage behavior, migration logic, or shared content types.
 
-## Supabase Clients
-- `src/lib/supabase/server.ts`
-  - Creates the server-side Supabase client
-  - Uses cookies for SSR/session-aware requests
-- `src/lib/supabase/client.ts`
-  - Creates the browser-side Supabase client
-- `src/lib/supabase/admin.ts`
-  - Creates the privileged service-role client
-  - Used for uploads and privileged writes
+## Database (MySQL on Neubox)
+- `src/lib/db/mysql.ts`
+  - `query`, `queryOne`, `execute` helpers on top of `mysql2/promise`; always use `?` placeholders
+  - On Cloudflare Workers: one connection per query, via the `HYPERDRIVE` binding if present, else `MYSQL_*` env vars
+  - On Node (`next dev`, build): a global pool
+  - Dates are stored in UTC and returned as ISO strings; `TINYINT(1)` is returned as boolean
+- Schema: `neubox/schema.sql`. Setup and data migration guide: `neubox/README.md`.
 
 ## Data Models
-- `src/lib/supabase/queries.ts`
-  - Defines `NewsArticle`
-  - Includes read helpers for latest, featured, breaking, category, by-id, search, categories, and most-viewed news
-- `src/lib/supabase/magazines.ts`
-  - Defines `Magazine`
-  - Includes read helpers for list, by-id, and featured magazines
+- `src/lib/db/queries.ts`
+  - Defines `NewsArticle` and `Author`
+  - Read helpers for latest, featured, breaking, category, by-id, search, categories, most-viewed, authors
+  - `getNewsById` throws when the row does not exist (pages rely on that to 404)
+- `src/lib/db/magazines.ts`
+  - Defines `Magazine`; list, by-id (throws if missing) and featured helpers
+- `src/lib/db/admin-users.ts`
+  - `admin_users` CRUD; only `getAdminCredentials` selects `password_hash`
 
-## Query Layer Notes
-- `getLatestNews`, `getFeaturedNews`, `getBreakingNews`, `getNewsByCategory`, `getNewsById`, `searchNews`, `getCategories`, and `getMostViewed` all read from Supabase tables.
-- `incrementViewCount` calls the `increment_view_count` RPC first.
-- If that RPC fails, `incrementViewCount` falls back to a direct update on the `news` table.
+## Auth
+- `src/lib/auth/session.ts`
+  - PBKDF2 password hashing (Web Crypto, max 100k iterations because of Workers)
+  - HMAC-signed httpOnly session cookie (`AUTH_SECRET`)
+  - `getCurrentAdmin()` and `requireAdmin()`; every admin server action must call `requireAdmin()`
 
-## Admin And Storage Operations
-- Admin write flows are implemented in `src/app/admin/actions.ts`, but they depend on the privileged client from `src/lib/supabase/admin.ts`.
-- Uploads currently use the Supabase storage bucket named `media`.
-- News uploads store images under `news/...`.
-- Magazine uploads store cover images and PDFs under `magazines/...`.
+## File Uploads
+- `src/lib/storage/neubox.ts` POSTs files to `neubox/media/upload.php` on the Neubox host with the `X-Upload-Key` header
+- News images go to `uploads/news/`, magazine covers and PDFs to `uploads/magazines/`
+- Older media URLs still point to Supabase storage
 
 ## YouTube Integration
 - `src/lib/youtube/config.ts`
@@ -45,34 +45,30 @@
 - `src/lib/wordpress/migrate.ts`
   - Fetches categories and posts from the WordPress REST API
   - Normalizes HTML/plain-text fields
-  - Inserts imported records into Supabase
+  - Upserts records into MySQL (`INSERT ... ON DUPLICATE KEY UPDATE`)
 - `src/app/api/migrate/route.ts`
   - Is the route-level entrypoint that calls the migration utility
 
 ## Security And Secret Handling
 - Document names of secrets only. Do not paste values.
-- `SUPABASE_SERVICE_ROLE_KEY` must stay server-only.
+- `MYSQL_PASSWORD`, `AUTH_SECRET` and `NEUBOX_UPLOAD_KEY` must stay server-only.
 - `MIGRATION_SECRET_KEY` protects the migration endpoint.
-- `ADMIN_EMAIL` is used by `src/app/admin/layout.tsx` to restrict admin access.
 
 ## Environment Variables Used By This Layer
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
+- `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DATABASE`
+- `AUTH_SECRET`
+- `NEUBOX_UPLOAD_URL`, `NEUBOX_UPLOAD_KEY`
 - `NEXT_PUBLIC_SITE_URL`
 - `WORDPRESS_API_URL`
 - `MIGRATION_SECRET_KEY`
-- `ADMIN_EMAIL`
 
 ## Tables And Content Domains
-- `news`
-- `magazines`
-- `categories`
+- `news`, `magazines`, `categories`, `admin_users`, `authors`, `news_authors`
 
 ## Read This Before Changing Data Logic
-- `src/lib/supabase/queries.ts`
-- `src/lib/supabase/magazines.ts`
-- `src/lib/supabase/server.ts`
-- `src/lib/supabase/admin.ts`
+- `src/lib/db/mysql.ts`
+- `src/lib/db/queries.ts`
+- `src/lib/db/magazines.ts`
+- `src/lib/auth/session.ts`
 - `src/app/admin/actions.ts`
 - `src/lib/wordpress/migrate.ts`

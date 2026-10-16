@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { createClient } from "@/lib/supabase/client";
+import { loginAdmin } from "../actions";
 
 export default function AdminLoginPage() {
     const [error, setError] = useState<string | null>(null);
@@ -13,34 +13,13 @@ export default function AdminLoginPage() {
         setLoading(true);
         setError(null);
 
-        const formData = new FormData(e.currentTarget);
-        const email = formData.get("email") as string;
-        const password = formData.get("password") as string;
+        const result = await loginAdmin(new FormData(e.currentTarget));
 
-        const supabase = createClient();
-
-        const { data, error: signInError } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-        });
-
-        if (signInError) {
-            if (signInError.message === "Invalid login credentials") {
-                setError("Correo o contrasenya incorrectos. Verifica tus datos.");
-            } else if (signInError.message.includes("Email not confirmed")) {
-                setError("Debes confirmar tu correo electronico en tu bandeja de entrada antes de continuar.");
-            } else {
-                setError(signInError.message);
-            }
-            setLoading(false);
-            return;
-        }
-
-        if (data.user) {
-            // Force a hard navigation so middleware picks up the new cookies
+        if (result.success) {
+            // Navegación completa para que el layout lea la cookie nueva
             window.location.href = "/admin";
         } else {
-            setError("No se pudo iniciar sesion. Intenta de nuevo.");
+            setError(result.error ?? "No se pudo iniciar sesion. Intenta de nuevo.");
             setLoading(false);
         }
     }

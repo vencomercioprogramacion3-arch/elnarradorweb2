@@ -1,4 +1,4 @@
-import type { NewsArticle } from "@/lib/supabase/queries";
+import type { NewsArticle } from "@/lib/db/queries";
 import ArticleCard from "./ArticleCard";
 
 type ArticleGridProps = {

@@ -33,8 +33,8 @@
   - `ReadingProgress.tsx` (client: gold scroll-progress bar used on article pages)
 
 ## Key Dependencies
-- News-oriented components consume `NewsArticle` from `src/lib/supabase/queries.ts`.
-- Magazine components consume `Magazine` from `src/lib/supabase/magazines.ts`.
+- News-oriented components consume `NewsArticle` from `src/lib/db/queries.ts`.
+- Magazine components consume `Magazine` from `src/lib/db/magazines.ts`.
 - SEO helpers are consumed by route files in `src/app/`.
 - Layout components are assembled by `src/app/layout.tsx` and page files.
 
@@ -62,5 +62,5 @@
 ## Read This Before Editing
 - `src/app/page.tsx`
 - `src/app/layout.tsx`
-- `src/lib/supabase/queries.ts`
-- `src/lib/supabase/magazines.ts`
+- `src/lib/db/queries.ts`
+- `src/lib/db/magazines.ts`

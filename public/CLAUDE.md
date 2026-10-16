@@ -37,9 +37,9 @@
 - Keep public asset URLs stable when possible.
 - If you rename or move an asset, update all route/component references that depend on it.
 - Do not store secrets, generated artifacts, or source code in `public/`.
-- Prefer placing editorial images in `public/images/` unless there is a reason to load them from Supabase storage instead.
+- Prefer placing editorial images in `public/images/` unless there is a reason to load them from the Neubox uploads folder instead.
 
 ## Relationship To Runtime Assets
 - Some images are local static assets from `public/`.
-- Other media is uploaded to Supabase storage and referenced by remote URL.
+- Other media is uploaded to the Neubox host (`/media/uploads/...`) and referenced by remote URL; older media still lives in Supabase storage.
 - Check `next.config.ts` remote image patterns before introducing new remote image hosts.

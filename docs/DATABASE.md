@@ -1,90 +1,79 @@
-# Base de datos (Supabase)
+# Base de datos (MySQL en Neubox)
 
-Proyecto: `elnarradormovil` (`fewwvcrfhdgnpfjyadev`). **La base es compartida
-con la app móvil de El Narrador**: contiene tablas que el sitio web no usa
-(bookmarks, fcm_tokens, analytics, anuario_*, etc.). No borrar ni alterar
-tablas sin verificar ambos clientes.
+El sitio usa una base **MySQL/MariaDB** en el hosting Neubox (administrada con
+phpMyAdmin). El esquema completo está en [`neubox/schema.sql`](../neubox/schema.sql)
+y la guía de configuración en [`neubox/README.md`](../neubox/README.md).
 
-## Tablas que usa el sitio web
+Antes el sitio compartía la base de Supabase (`fewwvcrfhdgnpfjyadev`) con la app
+móvil. **La app móvil sigue en Supabase**: el contenido ya no se sincroniza
+entre ambos. Las imágenes y PDFs antiguos siguen alojados en Supabase Storage.
+
+## Acceso desde el código
+
+- `src/lib/db/mysql.ts`: conexión (`mysql2`). En Cloudflare abre una conexión
+  por consulta usando el binding Hyperdrive `HYPERDRIVE` si existe, o las
+  variables `MYSQL_*`; en Node (`next dev` / build) usa un pool.
+  - Las fechas se guardan en **UTC** y se devuelven como string ISO.
+  - `TINYINT(1)` se devuelve como `boolean`.
+  - Helpers: `query`, `queryOne`, `execute`. Siempre con placeholders `?`.
+- `src/lib/db/queries.ts`, `src/lib/db/magazines.ts`, `src/lib/db/admin-users.ts`.
+
+## Tablas
 
 ### `news` — notas del sitio
-La tabla principal. La lee todo el sitio público y la escribe el panel admin
-(`src/app/admin/actions.ts`) y la migración de WordPress.
-
 | Columna | Tipo | Notas |
 |---|---|---|
-| `id` | text (PK) | UUID generado por defecto |
-| `source` | text | `'supabase'` o `'wordpress'` (check constraint) |
+| `id` | varchar(64) PK | UUID generado por el sitio, o `wp-<id>` para WordPress |
+| `source` | varchar | `'supabase'` (creada en el panel, valor histórico) o `'wordpress'` |
 | `title`, `summary`, `content` | text | `content` es HTML sanitizado |
-| `image_url` | text | URL pública del bucket `media` o externa |
-| `category_slug`, `category_name` | text | El slug debe existir en `categoryMap` de `src/app/[category]/page.tsx` |
-| `author_name` | text | Texto libre (autofill desde `admin_users.display_name`) |
-| `tags` | text[] | |
-| `published_at`, `created_at` | timestamptz | El orden público usa `published_at` |
-| `view_count` | int | Lo incrementa el RPC `increment_view_count` |
-| `is_featured`, `is_breaking` | bool | Portada destacada / última hora |
-| `status` | text | default `'published'` |
+| `image_url` | varchar | URL de Neubox (`/media/uploads/news/...`), Supabase (antiguas) o externa |
+| `category_slug`, `category_name` | varchar | El slug debe existir en `categoryMap` de `src/app/[category]/page.tsx` |
+| `author_name` | varchar | Texto libre (autofill desde `admin_users.display_name`) |
+| `tags` | json | Arreglo de strings |
+| `published_at`, `created_at` | datetime (UTC) | El orden público usa `published_at` |
+| `view_count` | int | |
+| `is_featured`, `is_breaking` | tinyint(1) | Portada destacada / última hora |
+| `status` | varchar | default `'published'` |
+| `source_url` | varchar | URL original (WordPress) |
 
 ### `magazines` — revistas en PDF
-| Columna | Tipo | Notas |
-|---|---|---|
-| `id` | uuid (PK) | |
-| `title`, `description`, `edition` | text | |
-| `cover_image_url`, `pdf_url` | text | URLs públicas del bucket `media` |
-| `published_at`, `created_at` | timestamptz | |
-| `is_featured` | bool | |
-| `view_count`, `download_count` | int | |
+`id`, `title`, `description`, `edition`, `cover_image_url`, `pdf_url`,
+`published_at`, `created_at`, `is_featured`, `view_count`, `download_count`.
 
 ### `categories`
-Catálogo de categorías (10 filas). El sitio web también mantiene una copia en
+`id` (slug), `name`, `sort_order`. El sitio también mantiene una copia en
 código en `src/app/[category]/page.tsx`; si se agrega una categoría hay que
 actualizar ambos lados.
 
-### `admin_users` — control de acceso al panel
-| Columna | Tipo | Notas |
-|---|---|---|
-| `email` | text (unique) | Se compara en minúsculas |
-| `display_name` | text | Autofill del campo "Autor" |
-| `role` | text | `owner` / `editor` / `writer` |
-
-`src/app/admin/layout.tsx` y el `requireAdmin()` de
-`src/app/admin/actions.ts` permiten el acceso si el usuario autenticado está
-en esta tabla (o si coincide con el env `ADMIN_EMAIL`, fallback legado).
+### `admin_users` — usuarios del panel
+| Columna | Notas |
+|---|---|
+| `email` | único, en minúsculas |
+| `display_name` | Autofill del campo "Autor" |
+| `role` | `owner` / `editor` / `writer` |
+| `password_hash` | `pbkdf2_sha256$<iter>$<sal>$<hash>`; lo genera el sitio o `scripts/hash-password.mjs` |
 
 ### `authors` y `news_authors`
-Autores normalizados y su relación N:M con `news`. El sitio los lee con
-`getAuthorsByNewsId()` (`src/lib/supabase/queries.ts`).
+Autores normalizados y su relación N:M con `news` (borrar una nota borra sus
+filas en `news_authors`). El sitio los lee con `getAuthorsByNewsId()`.
 
-## Funciones RPC que usa el sitio
+## Autenticación
 
-- `increment_view_count(news_id)` — contador de vistas de artículos, con
-  fallback a update directo si falla.
+`src/lib/auth/session.ts`: el login verifica la contraseña contra
+`admin_users.password_hash` y guarda una cookie httpOnly firmada con
+`AUTH_SECRET`. En cada request se vuelve a buscar el usuario en `admin_users`,
+así que eliminarlo le quita el acceso al instante. `requireAdmin()` es
+obligatorio en todo server action del panel.
 
-## Storage
+## Archivos (imágenes y PDFs)
 
-Bucket **`media`** (público): el admin sube imágenes a `news/...` y portadas y
-PDFs a `magazines/...` usando el cliente service-role. Existe además un bucket
-`magazines` legado con archivos antiguos.
+`src/lib/storage/neubox.ts` envía cada archivo a `media/upload.php` en el
+hosting (cabecera `X-Upload-Key` = `NEUBOX_UPLOAD_KEY`), que lo guarda en
+`media/uploads/news/` o `media/uploads/magazines/` y devuelve la URL pública.
 
-## Seguridad (RLS)
+## Seguridad
 
-- **Todas las tablas públicas tienen RLS habilitado** (verificado 2026-06).
-- Las lecturas públicas del sitio usan la clave anon con políticas de SELECT.
-- Las escrituras del admin usan `SUPABASE_SERVICE_ROLE_KEY` (salta RLS), por
-  eso `requireAdmin()` en los server actions es obligatorio.
-
-### Pendientes señalados por los advisors de Supabase
-
-Hallazgos del linter de seguridad de Supabase que conviene revisar en el
-dashboard (no se pueden arreglar desde este repo sin coordinar con la app
-móvil):
-
-1. **`upsert_news` y `send_push_notification` son `SECURITY DEFINER` y el rol
-   `anon` puede ejecutarlas** vía `/rest/v1/rpc/...`. Si la app móvil no las
-   llama sin sesión, revocar `EXECUTE` a `anon`.
-2. Varias funciones sin `search_path` fijo (`is_admin`, `upsert_news`, etc.).
-3. Protección de contraseñas filtradas (HaveIBeenPwned) desactivada en Auth.
-4. El bucket público `magazines` permite listar todos los archivos.
-
-Referencia: ejecutar el [Security Advisor](https://supabase.com/dashboard/project/fewwvcrfhdgnpfjyadev/advisors/security)
-en el dashboard para ver el estado actual.
+- El usuario MySQL solo debe tener permisos sobre esta base, con contraseña
+  larga (el acceso remoto queda abierto a `%` porque Cloudflare no tiene IP fija).
+- La base no tiene RLS: toda escritura pasa por server actions que llaman a
+  `requireAdmin()`. Nunca exponer las credenciales `MYSQL_*` al navegador.

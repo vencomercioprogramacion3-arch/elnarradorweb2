@@ -1,10 +1,11 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { getAdminUserByEmail } from "@/lib/supabase/admin-users";
+import { execute, query } from "@/lib/db/mysql";
+import { getAdminCredentials } from "@/lib/db/admin-users";
+import { endSession, requireAdmin, startSession, verifyPassword } from "@/lib/auth/session";
+import { uploadToNeubox } from "@/lib/storage/neubox";
 
 type ActionResult = { error?: string; success?: boolean };
 
@@ -24,28 +25,32 @@ const ALLOWED_IMAGE_TYPES: Record<string, string> = {
     "image/avif": "avif",
 };
 
-export async function loginAdmin(formData: FormData) {
-    const email = formData.get("email") as string;
-    const password = formData.get("password") as string;
+export async function loginAdmin(formData: FormData): Promise<ActionResult> {
+    const email = getString(formData, "email").toLowerCase();
+    const password = formData.get("password");
+    if (!email || typeof password !== "string" || !password) {
+        return { error: "Escribe tu correo y contraseña." };
+    }
 
-    const supabase = await createClient();
-
-    const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-    });
-
-    if (error) {
-        return { error: error.message };
+    try {
+        const user = await getAdminCredentials(email);
+        // Verificar aunque el usuario no exista para no revelar qué correos son válidos
+        const valid = await verifyPassword(password, user?.password_hash ?? "pbkdf2_sha256$1$AA$AA");
+        if (!user || !valid) {
+            return { error: "Correo o contraseña incorrectos. Verifica tus datos." };
+        }
+        await startSession(user.email);
+    } catch (err) {
+        console.error("loginAdmin failed:", err);
+        return { error: "No se pudo iniciar sesión. Intenta de nuevo." };
     }
 
     revalidatePath("/", "layout");
-    redirect("/admin");
+    return { success: true };
 }
 
 export async function logoutAdmin() {
-    const supabase = await createClient();
-    await supabase.auth.signOut();
+    await endSession();
     redirect("/admin/login");
 }
 
@@ -56,34 +61,6 @@ function generateSlug(title: string) {
         .replace(/[\u0300-\u036f]/g, "")
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/(^-|-$)+/g, "");
-}
-
-/**
- * Verifies that the caller is an authenticated admin (admin_users table or
- * legacy ADMIN_EMAIL). The admin layout already guards the UI, but server
- * actions are public POST endpoints and must enforce auth themselves.
- */
-async function requireAdmin(): Promise<{ error: string } | { email: string }> {
-    const supabase = await createClient();
-    const {
-        data: { user },
-        error,
-    } = await supabase.auth.getUser();
-
-    if (error || !user?.email) {
-        return { error: "Tu sesión expiró. Recarga la página e inicia sesión de nuevo." };
-    }
-
-    const email = user.email.toLowerCase();
-    const adminUser = await getAdminUserByEmail(email);
-    if (!adminUser) {
-        const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
-        if (!adminEmail || email !== adminEmail) {
-            return { error: "Tu cuenta no tiene permisos para publicar contenido." };
-        }
-    }
-
-    return { email };
 }
 
 function getString(formData: FormData, key: string): string {
@@ -137,7 +114,6 @@ export async function uploadNews(formData: FormData): Promise<ActionResult> {
             return { error: "El contenido es demasiado grande. Si pegaste imágenes dentro del texto, elimínalas y usa solo la imagen destacada." };
         }
 
-        const supabaseAdmin = createAdminClient();
         const imageOption = getString(formData, "imageOption");
         let image_url = "";
 
@@ -150,35 +126,39 @@ export async function uploadNews(formData: FormData): Promise<ActionResult> {
                 if ("error" in validation) return { error: validation.error };
 
                 const fileName = `${Date.now()}-${generateSlug(title)}.${validation.ext}`;
-                const filePath = `news/${fileName}`;
-
-                const { error: uploadError } = await supabaseAdmin.storage
-                    .from("media")
-                    .upload(filePath, file);
-
-                if (uploadError) return { error: `No se pudo subir la imagen: ${uploadError.message}` };
-
-                const { data: publicUrl } = supabaseAdmin.storage.from("media").getPublicUrl(filePath);
-                image_url = publicUrl.publicUrl;
+                const upload = await uploadToNeubox(file, "news", fileName);
+                if ("error" in upload) return { error: `No se pudo subir la imagen: ${upload.error}` };
+                image_url = upload.url;
             }
         }
 
-        const { error: insertError } = await supabaseAdmin.from("news").insert({
-            title,
-            summary,
-            content: stripDangerousHtml(content),
-            category_slug,
-            category_name,
-            author_name,
-            image_url,
-            is_featured,
-            is_breaking,
-            tags: [],
-            source: "supabase",
-            published_at: new Date().toISOString()
-        });
-
-        if (insertError) return { error: `No se pudo guardar la nota: ${insertError.message}` };
+        try {
+            await execute(
+                `INSERT INTO news
+                    (id, title, summary, content, category_slug, category_name, author_name,
+                     image_url, is_featured, is_breaking, tags, source, published_at, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    crypto.randomUUID(),
+                    title,
+                    summary,
+                    stripDangerousHtml(content),
+                    category_slug,
+                    category_name,
+                    author_name,
+                    image_url,
+                    is_featured,
+                    is_breaking,
+                    "[]",
+                    // Valor histórico de la columna para notas creadas desde el panel
+                    "supabase",
+                    new Date(),
+                    new Date(),
+                ]
+            );
+        } catch (err) {
+            return { error: `No se pudo guardar la nota: ${err instanceof Error ? err.message : String(err)}` };
+        }
 
         revalidatePath("/", "layout");
         return { success: true };
@@ -205,7 +185,6 @@ export async function uploadMagazine(formData: FormData): Promise<ActionResult> 
         const coverFile = formData.get("coverImage");
         const pdfFile = formData.get("pdfFile");
 
-        const supabaseAdmin = createAdminClient();
         let cover_image_url = "";
         let pdf_url = "";
 
@@ -214,11 +193,9 @@ export async function uploadMagazine(formData: FormData): Promise<ActionResult> 
             if ("error" in validation) return { error: validation.error };
 
             const fileName = `${Date.now()}-cover-${generateSlug(title)}.${validation.ext}`;
-            const filePath = `magazines/${fileName}`;
-            const { error } = await supabaseAdmin.storage.from("media").upload(filePath, coverFile);
-            if (error) return { error: `No se pudo subir la portada: ${error.message}` };
-            const { data: publicUrl } = supabaseAdmin.storage.from("media").getPublicUrl(filePath);
-            cover_image_url = publicUrl.publicUrl;
+            const upload = await uploadToNeubox(coverFile, "magazines", fileName);
+            if ("error" in upload) return { error: `No se pudo subir la portada: ${upload.error}` };
+            cover_image_url = upload.url;
         }
 
         if (pdfFile instanceof File && pdfFile.size > 0) {
@@ -230,26 +207,23 @@ export async function uploadMagazine(formData: FormData): Promise<ActionResult> 
                 return { error: `El PDF pesa ${mb} MB y el máximo es 50 MB.` };
             }
             const fileName = `${Date.now()}-pdf-${generateSlug(title)}.pdf`;
-            const filePath = `magazines/${fileName}`;
-            const { error } = await supabaseAdmin.storage.from("media").upload(filePath, pdfFile);
-            if (error) return { error: `No se pudo subir el PDF: ${error.message}` };
-            const { data: publicUrl } = supabaseAdmin.storage.from("media").getPublicUrl(filePath);
-            pdf_url = publicUrl.publicUrl;
+            const upload = await uploadToNeubox(pdfFile, "magazines", fileName);
+            if ("error" in upload) return { error: `No se pudo subir el PDF: ${upload.error}` };
+            pdf_url = upload.url;
         }
 
         if (!pdf_url) return { error: "El PDF de la revista es obligatorio." };
 
-        const { error: insertError } = await supabaseAdmin.from("magazines").insert({
-            title,
-            description,
-            edition,
-            cover_image_url,
-            pdf_url,
-            is_featured,
-            published_at: new Date().toISOString()
-        });
-
-        if (insertError) return { error: `No se pudo guardar la revista: ${insertError.message}` };
+        try {
+            await execute(
+                `INSERT INTO magazines
+                    (id, title, description, edition, cover_image_url, pdf_url, is_featured, published_at, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [crypto.randomUUID(), title, description, edition, cover_image_url, pdf_url, is_featured, new Date(), new Date()]
+            );
+        } catch (err) {
+            return { error: `No se pudo guardar la revista: ${err instanceof Error ? err.message : String(err)}` };
+        }
 
         revalidatePath("/revistas", "layout");
         revalidatePath("/", "layout");
@@ -259,4 +233,51 @@ export async function uploadMagazine(formData: FormData): Promise<ActionResult> 
         const message = err instanceof Error ? err.message : "Error desconocido";
         return { error: `Ocurrió un error al publicar la revista: ${message}` };
     }
+}
+
+/* ───── Gestión de notas (/admin/notas) ───── */
+
+export type AdminNewsItem = {
+    id: string;
+    title: string;
+    category_name: string;
+    published_at: string;
+    is_featured: boolean;
+    is_breaking: boolean;
+    view_count: number;
+    source: string;
+};
+
+export async function listNewsForAdmin(): Promise<{ error: string } | { posts: AdminNewsItem[] }> {
+    const auth = await requireAdmin();
+    if ("error" in auth) return { error: auth.error };
+    const posts = await query<AdminNewsItem>(
+        `SELECT id, title, category_name, published_at, is_featured, is_breaking, view_count, source
+         FROM news ORDER BY published_at DESC LIMIT 100`
+    );
+    return { posts };
+}
+
+export async function setNewsFlag(id: string, flag: "is_featured" | "is_breaking", value: boolean): Promise<ActionResult> {
+    const auth = await requireAdmin();
+    if ("error" in auth) return { error: auth.error };
+    // El nombre de la columna viene de una lista fija, nunca del cliente sin validar
+    const column = flag === "is_breaking" ? "is_breaking" : "is_featured";
+    await execute(`UPDATE news SET ${column} = ? WHERE id = ?`, [value, id]);
+    revalidatePath("/", "layout");
+    return { success: true };
+}
+
+export async function deleteNews(id: string): Promise<ActionResult> {
+    const auth = await requireAdmin();
+    if ("error" in auth) return { error: auth.error };
+    await execute("DELETE FROM news WHERE id = ?", [id]);
+    revalidatePath("/", "layout");
+    return { success: true };
+}
+
+/** Nombre del usuario actual, para autollenar el campo "Autor". */
+export async function getCurrentAdminName(): Promise<string> {
+    const auth = await requireAdmin();
+    return "error" in auth ? "" : auth.user.display_name;
 }

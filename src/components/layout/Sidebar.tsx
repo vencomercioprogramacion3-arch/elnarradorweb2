@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import type { NewsArticle } from "@/lib/supabase/queries";
+import type { NewsArticle } from "@/lib/db/queries";
 
 type SidebarProps = {
   title: string;

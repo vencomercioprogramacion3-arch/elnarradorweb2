@@ -1,0 +1,8 @@
+# Nunca servir config.php ni archivos ocultos
+<Files "config.php">
+    Require all denied
+</Files>
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+Options -Indexes

@@ -13,10 +13,9 @@
 - `src/components/`
   - Reusable UI for the public site
 - `src/lib/`
-  - Supabase clients, queries, typed content access, WordPress migration helpers
+  - MySQL access (`db/`), admin session (`auth/`), uploads (`storage/`), queries, typed content access, WordPress migration helpers
 - `src/middleware.ts`
   - Propagates pathname via `x-invoke-path`
-  - Refreshes Supabase auth session
 
 ## Import Conventions
 - The project uses alias imports rooted at `@/`.
@@ -27,9 +26,9 @@
 
 ## Cross-Cutting Concerns
 - Public and admin routes share the same app and middleware.
-- Auth state is coordinated through Supabase SSR helpers.
+- Admin auth is a signed session cookie handled by `src/lib/auth/session.ts`.
 - Metadata and SEO behavior are defined inside route files and shared helpers.
-- Some routes are server-rendered and some admin screens contain client-side Supabase usage.
+- Some routes are server-rendered and admin client screens talk to the database only through server actions.
 
 ## Where To Implement Common Changes
 - Add or change a route: `src/app/`

@@ -1,4 +1,4 @@
-import { getNewsById, getLatestNews } from "@/lib/supabase/queries";
+import { getNewsById, getLatestNews } from "@/lib/db/queries";
 import Image from "next/image";
 import Link from "next/link";
 import Sidebar from "@/components/layout/Sidebar";

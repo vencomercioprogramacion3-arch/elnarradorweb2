@@ -4,14 +4,14 @@
 - Editorial website for `El Narrador de Mexico`.
 - Single `Next.js` app that serves both the public news site and the `/admin` panel.
 - Main content domains are `news`, `magazines`, and `categories`.
-- Data is stored in Supabase. There is also a WordPress migration path for importing legacy content.
+- Data is stored in a MySQL database on Neubox hosting (managed with phpMyAdmin). There is also a WordPress migration path for importing legacy content.
 
 ## Tech Stack
 - `Next.js 15.5.x` App Router
 - `React 18`
 - `TypeScript`
 - `Tailwind CSS v4`
-- `Supabase`
+- `MySQL` (Neubox) via `mysql2`
 - `OpenNext` targeting `Cloudflare`
 
 ## Runtime And Deployment
@@ -42,18 +42,18 @@
 ## High-Level Folder Map
 - `src/app/`: routes, layouts, metadata, route handlers, server actions
 - `src/components/`: reusable public UI and SEO helpers
-- `src/lib/`: Supabase access and WordPress migration logic
-- `src/middleware.ts`: request header propagation and auth session refresh
+- `src/lib/`: MySQL access, admin session, Neubox uploads and WordPress migration logic
+- `src/middleware.ts`: request header propagation
 - `public/`: static assets and hosting headers
 
 ## Environment Variables Actually Used
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
+- `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DATABASE`
+- `AUTH_SECRET` (signs the admin session cookie)
+- `NEUBOX_UPLOAD_URL`, `NEUBOX_UPLOAD_KEY` (file uploads to the Neubox host)
 - `NEXT_PUBLIC_SITE_URL`
 - `WORDPRESS_API_URL`
 - `MIGRATION_SECRET_KEY`
-- `ADMIN_EMAIL`
+- Optional Cloudflare Hyperdrive binding `HYPERDRIVE` (see `wrangler.toml`)
 
 Do not copy secrets into documentation. Only document names and purpose.
 
@@ -80,28 +80,29 @@ Do not copy secrets into documentation. Only document names and purpose.
 - `/api/migrate`: migration API endpoint guarded by `MIGRATION_SECRET_KEY`
 
 ## Data Sources
-- Supabase is the primary live data source.
+- MySQL on Neubox is the primary live data source. Schema: `neubox/schema.sql`; setup guide: `neubox/README.md`.
+- Connection helper: `src/lib/db/mysql.ts` (`query`, `queryOne`, `execute`; always use `?` placeholders).
 - WordPress import code lives in `src/lib/wordpress/migrate.ts`.
 - Migration endpoint lives in `src/app/api/migrate/route.ts`.
-- Public article and magazine reads are handled through `src/lib/supabase/queries.ts` and `src/lib/supabase/magazines.ts`.
+- Public article and magazine reads are handled through `src/lib/db/queries.ts` and `src/lib/db/magazines.ts`.
+- Admin auth lives in `src/lib/auth/session.ts`; uploads go through `src/lib/storage/neubox.ts` to `neubox/media/upload.php`.
 
 ## Cross-Cutting Runtime Behavior
 - `src/middleware.ts` forwards the current pathname through `x-invoke-path`.
-- `src/middleware.ts` also refreshes the Supabase auth session on each matching request.
 - `src/app/layout.tsx` uses `x-invoke-path` to avoid rendering the public navbar/footer for `/admin` routes.
-- `src/app/admin/layout.tsx` enforces auth and optional `ADMIN_EMAIL` matching.
+- `src/app/admin/layout.tsx` enforces auth via `getCurrentAdmin()` (signed cookie + `admin_users` lookup).
 
 ## Important Warnings
 - Builds enforce ESLint and TypeScript (`npm run lint` / `npm run typecheck` run the same checks).
-- Admin server actions in `src/app/admin/actions.ts` must keep calling `requireAdmin()`: they are public POST endpoints that use the service-role client.
-- The Supabase database is shared with the El Narrador mobile app. See `docs/DATABASE.md` before changing schema or RPCs.
+- Admin server actions in `src/app/admin/actions.ts` must keep calling `requireAdmin()`: they are public POST endpoints with full database access. `requireAdmin()` lives in `src/lib/auth/session.ts`.
+- The El Narrador mobile app still uses Supabase; the website no longer shares data with it. See `docs/DATABASE.md` before changing the schema.
 
 ## Safe Change Guidance
 - Put route and page behavior in `src/app/`.
 - Put reusable rendering logic in `src/components/`.
 - Put data access and external integrations in `src/lib/`.
 - Avoid editing generated output folders.
-- Prefer reading `src/app/layout.tsx`, `src/middleware.ts`, and `src/lib/supabase/*` before changing behavior that spans public and admin flows.
+- Prefer reading `src/app/layout.tsx`, `src/middleware.ts`, and `src/lib/db/*` before changing behavior that spans public and admin flows.
 
 ## Suggested Reading Order
 1. `package.json`

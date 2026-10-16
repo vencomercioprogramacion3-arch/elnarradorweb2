@@ -1,12 +1,15 @@
-import { createClient } from "@supabase/supabase-js";
+import { execute } from "@/lib/db/mysql";
 
 const WP_API = process.env.WORDPRESS_API_URL || "https://elnarradordemexico.com/wp-json/wp/v2";
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+function errorMessage(e: unknown) {
+  return e instanceof Error ? e.message : String(e);
+}
 
 type WPPost = {
   id: number;
   date: string;
+  date_gmt?: string;
   title: { rendered: string };
   excerpt: { rendered: string };
   content: { rendered: string };
@@ -54,7 +57,6 @@ export async function migrateFromWordPress(options: {
   dryRun?: boolean;
 }) {
   const { maxPages = 1, dryRun = false } = options;
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
   const results = {
     categoriesMigrated: 0,
@@ -69,21 +71,15 @@ export async function migrateFromWordPress(options: {
 
     if (!dryRun) {
       for (const cat of wpCategories) {
-        const { error } = await supabase
-          .from("categories")
-          .upsert(
-            {
-              id: cat.slug,
-              name: cat.name,
-              sort_order: 0,
-            },
-            { onConflict: "id" }
+        try {
+          await execute(
+            `INSERT INTO categories (id, name, sort_order) VALUES (?, ?, 0)
+             ON DUPLICATE KEY UPDATE name = VALUES(name)`,
+            [cat.slug, cat.name]
           );
-
-        if (error) {
-          results.errors.push(`Category ${cat.name}: ${error.message}`);
-        } else {
           results.categoriesMigrated++;
+        } catch (error) {
+          results.errors.push(`Category ${cat.name}: ${errorMessage(error)}`);
         }
       }
     } else {
@@ -118,7 +114,7 @@ export async function migrateFromWordPress(options: {
           category_name: category?.name || "",
           author_name: authorName,
           tags,
-          published_at: post.date,
+          published_at: new Date(post.date_gmt ? `${post.date_gmt}Z` : post.date),
           source_url: post.link,
           view_count: 0,
           is_featured: false,
@@ -126,17 +122,30 @@ export async function migrateFromWordPress(options: {
         };
 
         if (!dryRun) {
-          const { error } = await supabase
-            .from("news")
-            .upsert(newsItem, { onConflict: "id" });
-
-          if (error) {
+          try {
+            await execute(
+              `INSERT INTO news
+                 (id, source, title, summary, content, image_url, category_slug, category_name,
+                  author_name, tags, published_at, source_url, view_count, is_featured, is_breaking, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON DUPLICATE KEY UPDATE
+                 title = VALUES(title), summary = VALUES(summary), content = VALUES(content),
+                 image_url = VALUES(image_url), category_slug = VALUES(category_slug),
+                 category_name = VALUES(category_name), author_name = VALUES(author_name),
+                 tags = VALUES(tags), published_at = VALUES(published_at), source_url = VALUES(source_url)`,
+              [
+                newsItem.id, newsItem.source, newsItem.title, newsItem.summary, newsItem.content,
+                newsItem.image_url, newsItem.category_slug, newsItem.category_name, newsItem.author_name,
+                JSON.stringify(newsItem.tags), newsItem.published_at, newsItem.source_url,
+                newsItem.view_count, newsItem.is_featured, newsItem.is_breaking, new Date(),
+              ]
+            );
+            results.postsMigrated++;
+          } catch (error) {
             results.errors.push(
-              `Post "${newsItem.title.substring(0, 40)}...": ${error.message}`
+              `Post "${newsItem.title.substring(0, 40)}...": ${errorMessage(error)}`
             );
             results.postsSkipped++;
-          } else {
-            results.postsMigrated++;
           }
         } else {
           results.postsMigrated++;

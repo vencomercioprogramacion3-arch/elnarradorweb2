@@ -1,4 +1,4 @@
-import { getNewsByCategory, getMostViewed } from "@/lib/supabase/queries";
+import { getNewsByCategory, getMostViewed } from "@/lib/db/queries";
 import ArticleGrid from "@/components/news/ArticleGrid";
 import Sidebar from "@/components/layout/Sidebar";
 import { notFound } from "next/navigation";
