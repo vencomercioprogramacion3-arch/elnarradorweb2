@@ -156,3 +156,19 @@ Cloudflare. El sitio reescribe esas URLs a `https://wp.elnarradordemexico.com/wp
 2. Cloudflare → DNS → registro `A` `wp` → IP del servidor de Neubox (DNS only).
 3. cPanel → **SSL/TLS Status** → **Run AutoSSL**.
 4. Probar una imagen: `https://wp.elnarradordemexico.com/wp-content/uploads/...`.
+
+## Copiar las imágenes de Supabase a Neubox
+
+`scripts/copy-supabase-images.mjs` descarga las imágenes de las notas que
+siguen en Supabase Storage, las sube con `media/upload.php` y actualiza
+`news.image_url`. Empieza por las notas más recientes y se puede repetir.
+
+```bash
+node --env-file=.env.local scripts/copy-supabase-images.mjs                       # prueba
+node --env-file=.env.local scripts/copy-supabase-images.mjs --apply               # 100 notas
+node --env-file=.env.local scripts/copy-supabase-images.mjs --apply --limit=2000  # todas
+```
+
+`.env.local` necesita `MYSQL_*`, `NEUBOX_UPLOAD_URL` y `NEUBOX_UPLOAD_KEY`.
+Si el proyecto de Supabase está restringido por exceder la cuota, las
+descargas fallan (el script se detiene tras 5 errores seguidos).
