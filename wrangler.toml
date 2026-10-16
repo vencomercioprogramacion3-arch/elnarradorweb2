@@ -20,6 +20,17 @@ persist = true
 
 [observability.issue_detection]
 enabled = false
+# ...
+[vars]
+MYSQL_DATABASE = "elnarra1_elnarradormovil"
+MYSQL_HOST = "65.99.225.174"
+MYSQL_PORT = "3306"
+MYSQL_USER = "elnarra1_elnarrador_movil2026"
+NEUBOX_UPLOAD_URL = "https://media.elnarradordemexico.com/upload.php"
+NEXT_PUBLIC_SITE_URL = "https://elnarradordemexico.com"
+WORDPRESS_API_URL = "https://elnarradordemexico.com/wp-json/wp/v2"
+# ...
+
 # Base MySQL de Neubox. Las credenciales (MYSQL_*, AUTH_SECRET, NEUBOX_*) se
 # configuran en el dashboard de Cloudflare; ver neubox/README.md.
 # Opcional pero recomendado: Hyperdrive. Crear con
