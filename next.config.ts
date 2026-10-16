@@ -1,6 +1,13 @@
 import type { NextConfig } from "next";
+import { LEGACY_WP_ORIGIN } from "./src/lib/legacy-media";
 
 const nextConfig: NextConfig = {
+  // Enlaces viejos a archivos del WordPress (imágenes en notas, PDFs) siguen en Neubox
+  async redirects() {
+    return [
+      { source: "/wp-content/:path*", destination: `${LEGACY_WP_ORIGIN}/wp-content/:path*`, permanent: false },
+    ];
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: "50mb",

@@ -141,3 +141,18 @@ npm run deploy
 Revisa: portada, una categoría, una nota, búsqueda, `/revistas`, y en
 `/admin`: iniciar sesión, publicar una nota con imagen, subir una revista,
 marcar destacada / última hora, borrar una nota y agregar un usuario.
+
+## Imágenes del WordPress anterior
+
+Las notas importadas de WordPress apuntan a
+`https://elnarradordemexico.com/wp-content/uploads/...` (o a su copia en
+`i0.wp.com`). Esos archivos siguen en Neubox, pero el dominio ahora apunta a
+Cloudflare. El sitio reescribe esas URLs a `https://wp.elnarradordemexico.com/wp-content/...`
+(`src/lib/legacy-media.ts`) y redirige cualquier `/wp-content/...` ahí.
+
+1. cPanel → **Dominios** → crear `wp.elnarradordemexico.com` con raíz del
+   documento en la carpeta del WordPress (la que contiene `wp-content/`,
+   normalmente `/home/<usuario>/public_html`).
+2. Cloudflare → DNS → registro `A` `wp` → IP del servidor de Neubox (DNS only).
+3. cPanel → **SSL/TLS Status** → **Run AutoSSL**.
+4. Probar una imagen: `https://wp.elnarradordemexico.com/wp-content/uploads/...`.
