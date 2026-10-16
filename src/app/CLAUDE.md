@@ -10,6 +10,7 @@
 - `src/app/revistas/[id]/page.tsx`: magazine detail and embedded PDF
 - `src/app/admin/`: admin routes and layout
 - `src/app/api/migrate/route.ts`: migration endpoint
+- `src/app/api/salud/route.ts`: MySQL connection diagnostics (env presence + error code, no secret values)
 - `src/app/robots.ts`: robots output
 - `src/app/sitemap.ts`: sitemap output
 - `src/app/not-found.tsx`: fallback UI
