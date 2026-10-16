@@ -1,4 +1,5 @@
 import { query, queryOne, execute, parseJsonArray, escapeLike, type Row } from "./mysql";
+import { fixLegacyMediaUrls } from "@/lib/legacy-media";
 
 export type Author = {
   id: string;
@@ -30,7 +31,13 @@ export type NewsArticle = {
 };
 
 function toArticle(row: Row): NewsArticle {
-  return { ...(row as unknown as NewsArticle), tags: parseJsonArray(row.tags) };
+  const article = row as unknown as NewsArticle;
+  return {
+    ...article,
+    image_url: fixLegacyMediaUrls(article.image_url),
+    content: fixLegacyMediaUrls(article.content),
+    tags: parseJsonArray(row.tags),
+  };
 }
 
 async function selectNews(where: string, params: unknown[], orderAndLimit: string) {

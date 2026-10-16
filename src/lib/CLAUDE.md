@@ -32,6 +32,7 @@
 - `src/lib/storage/neubox.ts` POSTs files to `neubox/media/upload.php` on the Neubox host with the `X-Upload-Key` header
 - News images go to `uploads/news/`, magazine covers and PDFs to `uploads/magazines/`
 - Older media URLs still point to Supabase storage
+- `src/lib/legacy-media.ts` rewrites old WordPress image URLs (`elnarradordemexico.com/wp-content/...`, `i0.wp.com/...`) to `LEGACY_WP_ORIGIN` (a Neubox subdomain); `toArticle` applies it to `image_url` and `content`, and `next.config.ts` redirects `/wp-content/*` there
 
 ## YouTube Integration
 - `src/lib/youtube/config.ts`
