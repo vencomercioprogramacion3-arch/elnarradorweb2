@@ -7,7 +7,19 @@ compatibility_flags = ["nodejs_compat"]
 [assets]
 directory = ".open-next/assets"
 binding = "ASSETS"
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+invocation_logs = true
+persist = true
 
+[observability.traces]
+enabled = false
+head_sampling_rate = 1
+persist = true
+
+[observability.issue_detection]
+enabled = false
 # Base MySQL de Neubox. Las credenciales (MYSQL_*, AUTH_SECRET, NEUBOX_*) se
 # configuran en el dashboard de Cloudflare; ver neubox/README.md.
 # Opcional pero recomendado: Hyperdrive. Crear con
