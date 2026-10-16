@@ -1,7 +1,7 @@
 # Despliegue a Cloudflare
 
 El sitio se construye con [OpenNext para Cloudflare](https://opennext.js.org/cloudflare)
-y se despliega a Cloudflare Pages con Wrangler. La configuración vive en
+y se despliega como **Cloudflare Worker**. La configuración vive en
 `wrangler.toml` y `open-next.config.ts`.
 
 ## Flujo normal
@@ -18,15 +18,26 @@ npm run deploy
 ```
 
 `npm run deploy` ejecuta el build de OpenNext (`.open-next/`) y luego
-`wrangler pages deploy`. Necesitas estar autenticado con `npx wrangler login`
+`opennextjs-cloudflare deploy`. Necesitas estar autenticado con `npx wrangler login`
 o tener `CLOUDFLARE_API_TOKEN` exportado.
+
+## Despliegue automático desde GitHub
+
+En **Workers & Pages > proyecto > Settings > Build** conecta el repositorio
+`vencomercioprogramacion3-arch/elnarradorweb2`, rama `main`:
+
+- Build command: `npx @opennextjs/cloudflare build`
+- Deploy command: `npx @opennextjs/cloudflare deploy`
+- El nombre del Worker debe ser igual a `name` en `wrangler.toml`.
+- Las variables `MYSQL_*` también deben estar en **Build > Variables and
+  secrets**, porque el build consulta la base.
 
 ## Variables de entorno en Cloudflare
 
 `wrangler.toml` no contiene credenciales (solo el bloque opcional de
 Hyperdrive). Las variables deben configurarse en el dashboard de Cloudflare
-(**Pages > proyecto > Settings > Environment variables**) o con
-`npx wrangler pages secret put <NOMBRE>`:
+(**Workers & Pages > proyecto > Settings > Variables and Secrets**) o con
+`npx wrangler secret put <NOMBRE>`:
 
 | Variable | Tipo | Notas |
 |---|---|---|

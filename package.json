@@ -10,8 +10,8 @@
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "pages:build": "npm run build",
-    "preview": "npm run build && npx wrangler pages dev",
-    "deploy": "npm run build && npx wrangler pages deploy"
+    "preview": "npx @opennextjs/cloudflare build && npx @opennextjs/cloudflare preview",
+    "deploy": "npx @opennextjs/cloudflare build && npx @opennextjs/cloudflare deploy"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.2.1",
