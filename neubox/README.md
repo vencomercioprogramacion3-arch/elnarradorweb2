@@ -112,8 +112,8 @@ Copia el `id` que te devuelve en el bloque `[[hyperdrive]]` de
 
 ## 6. Variables de entorno en Cloudflare
 
-En **Cloudflare → Pages → proyecto → Settings → Environment variables**
-(o `npx wrangler pages secret put NOMBRE`):
+En **Cloudflare → Workers & Pages → proyecto → Settings → Variables and Secrets**
+(o `npx wrangler secret put NOMBRE`):
 
 | Variable | Tipo | Valor |
 |---|---|---|

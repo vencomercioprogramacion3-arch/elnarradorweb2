@@ -3,11 +3,10 @@ main = ".open-next/worker.js"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
-# OpenNext Cloudflare adapter output
-pages_build_output_dir = ".open-next/cloudflare"
-
+# Se despliega como Cloudflare Worker (OpenNext). El build genera .open-next/
 [assets]
 directory = ".open-next/assets"
+binding = "ASSETS"
 
 # Base MySQL de Neubox. Las credenciales (MYSQL_*, AUTH_SECRET, NEUBOX_*) se
 # configuran en el dashboard de Cloudflare; ver neubox/README.md.

@@ -39,7 +39,7 @@ El sitio queda en http://localhost:3000 y el panel en http://localhost:3000/admi
 | `npm run lint` | ESLint sobre `src/` |
 | `npm run typecheck` | Verificación de tipos con `tsc --noEmit` |
 | `npm run preview` | Build + preview local con Wrangler |
-| `npm run deploy` | Build + deploy a Cloudflare Pages |
+| `npm run deploy` | Build + deploy a Cloudflare Workers |
 
 ## Estructura del proyecto
 
