@@ -42,17 +42,18 @@ if (!in_array($folder, ['news', 'magazines'], true)) {
 
 $name = $_POST['name'] ?? '';
 $allowed = [
-    'jpg'  => ['image/jpeg'],
-    'png'  => ['image/png'],
-    'webp' => ['image/webp'],
-    'gif'  => ['image/gif'],
-    'avif' => ['image/avif'],
-    'pdf'  => ['application/pdf'],
+    'jpg'   => ['image/jpeg', 'image/jpg', 'image/pjpeg', 'application/octet-stream'],
+    'jpeg'  => ['image/jpeg', 'image/jpg', 'image/pjpeg', 'application/octet-stream'],
+    'png'   => ['image/png', 'image/x-png', 'application/octet-stream'],
+    'webp'  => ['image/webp', 'application/octet-stream'],
+    'gif'   => ['image/gif', 'application/octet-stream'],
+    'avif'  => ['image/avif', 'application/octet-stream'],
+    'pdf'   => ['application/pdf', 'application/octet-stream'],
 ];
-if (!is_string($name) || !preg_match('/^[a-z0-9][a-z0-9._-]{0,180}\.(jpg|png|webp|gif|avif|pdf)$/', $name, $m)) {
+if (!is_string($name) || !preg_match('/^[a-z0-9][a-z0-9._-]{0,180}\.(jpg|jpeg|png|webp|gif|avif|pdf)$/i', $name, $m)) {
     fail(400, 'Nombre de archivo no válido.');
 }
-$ext = $m[1];
+$ext = strtolower($m[1]);
 
 if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
     $code = $_FILES['file']['error'] ?? -1;
@@ -64,8 +65,29 @@ if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
 
 $tmp = $_FILES['file']['tmp_name'];
 $mime = (new finfo(FILEINFO_MIME_TYPE))->file($tmp);
-// Algunos servidores no reconocen AVIF; aceptarlo si el contenedor es ISO-BMFF
-if (!in_array($mime, $allowed[$ext], true) && !($ext === 'avif' && $mime === 'application/octet-stream')) {
+
+$validSignature = false;
+if ($ext === 'pdf') {
+    $header = file_get_contents($tmp, false, null, 0, 5);
+    $validSignature = is_string($header) && strncmp('%PDF-', $header, 5) === 0;
+} elseif ($ext === 'png') {
+    $header = file_get_contents($tmp, false, null, 0, 8);
+    $validSignature = is_string($header) && strncmp("\x89PNG\r\n\x1a\n", $header, 8) === 0;
+} elseif ($ext === 'gif') {
+    $header = file_get_contents($tmp, false, null, 0, 6);
+    $validSignature = is_string($header) && ($header === 'GIF87a' || $header === 'GIF89a');
+} elseif ($ext === 'webp') {
+    $header = file_get_contents($tmp, false, null, 0, 12);
+    $validSignature = is_string($header) && substr($header, 0, 4) === 'RIFF' && substr($header, 8, 4) === 'WEBP';
+} elseif ($ext === 'avif') {
+    $header = file_get_contents($tmp, false, null, 0, 12);
+    $validSignature = is_string($header) && substr($header, 4, 4) === 'ftyp';
+} else {
+    $header = file_get_contents($tmp, false, null, 0, 2);
+    $validSignature = is_string($header) && $header[0] === '\xFF' && $header[1] === '\xD8';
+}
+
+if (!in_array($mime, $allowed[$ext], true) && !($validSignature && in_array($mime, ['application/octet-stream', 'application/x-empty'], true))) {
     fail(400, 'El contenido del archivo no coincide con su tipo (' . $mime . ').');
 }
 

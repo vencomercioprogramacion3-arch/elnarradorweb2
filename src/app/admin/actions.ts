@@ -19,7 +19,10 @@ const MAX_CONTENT_LENGTH = 2 * 1024 * 1024; // ~2 MB de HTML
 // La extensión se deriva del MIME type para no confiar en el nombre del archivo
 const ALLOWED_IMAGE_TYPES: Record<string, string> = {
     "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/pjpeg": "jpg",
     "image/png": "png",
+    "image/x-png": "png",
     "image/webp": "webp",
     "image/gif": "gif",
     "image/avif": "avif",
@@ -68,8 +71,21 @@ function getString(formData: FormData, key: string): string {
     return typeof value === "string" ? value.trim() : "";
 }
 
+function getAllowedExtensionForFile(file: File): string | null {
+    const mime = file.type.toLowerCase();
+    if (mime in ALLOWED_IMAGE_TYPES) return ALLOWED_IMAGE_TYPES[mime];
+
+    const name = file.name.toLowerCase();
+    if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return "jpg";
+    if (name.endsWith(".png")) return "png";
+    if (name.endsWith(".webp")) return "webp";
+    if (name.endsWith(".gif")) return "gif";
+    if (name.endsWith(".avif")) return "avif";
+    return null;
+}
+
 function validateImage(file: File): { ext: string } | { error: string } {
-    const ext = ALLOWED_IMAGE_TYPES[file.type];
+    const ext = getAllowedExtensionForFile(file);
     if (!ext) {
         return { error: `Formato de imagen no permitido (${file.type || "desconocido"}). Usa JPG, PNG, WebP, GIF o AVIF.` };
     }
@@ -78,6 +94,23 @@ function validateImage(file: File): { ext: string } | { error: string } {
         return { error: `La imagen pesa ${mb} MB y el máximo es 8 MB. Comprímela e inténtalo de nuevo.` };
     }
     return { ext };
+}
+
+async function isPdfFile(file: File): Promise<boolean> {
+    const name = file.name.toLowerCase();
+    if (name.endsWith(".pdf")) return true;
+
+    const mime = file.type.toLowerCase();
+    if (mime === "application/pdf" || mime === "application/octet-stream") {
+        try {
+            const header = new Uint8Array(await file.slice(0, 5).arrayBuffer());
+            return header.length >= 5 && header[0] === 0x25 && header[1] === 0x50 && header[2] === 0x44 && header[3] === 0x46 && header[4] === 0x2d;
+        } catch {
+            return false;
+        }
+    }
+
+    return false;
 }
 
 // Backstop server-side: la sanitización principal ocurre en el cliente con
@@ -199,8 +232,9 @@ export async function uploadMagazine(formData: FormData): Promise<ActionResult> 
         }
 
         if (pdfFile instanceof File && pdfFile.size > 0) {
-            if (pdfFile.type !== "application/pdf") {
-                return { error: "El archivo de la revista debe ser un PDF." };
+            const isPdf = await isPdfFile(pdfFile);
+            if (!isPdf) {
+                return { error: "El archivo de la revista debe ser un PDF válido." };
             }
             if (pdfFile.size > MAX_PDF_BYTES) {
                 const mb = (pdfFile.size / 1024 / 1024).toFixed(0);
