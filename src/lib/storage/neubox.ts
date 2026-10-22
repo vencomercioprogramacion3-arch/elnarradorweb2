@@ -9,6 +9,8 @@
 
 export type UploadFolder = "news" | "magazines";
 
+const UPLOAD_TIMEOUT_MS = 60_000;
+
 export async function uploadToNeubox(
   file: File,
   folder: UploadFolder,
@@ -27,8 +29,16 @@ export async function uploadToNeubox(
 
   let res: Response;
   try {
-    res = await fetch(endpoint, { method: "POST", headers: { "X-Upload-Key": key }, body });
+    res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "X-Upload-Key": key },
+      body,
+      signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS),
+    });
   } catch (err) {
+    if (err instanceof Error && err.name === "TimeoutError") {
+      return { error: "Neubox tardó más de 60 segundos en responder. Revisa el servicio y vuelve a intentarlo." };
+    }
     return { error: `No se pudo conectar con Neubox: ${err instanceof Error ? err.message : String(err)}` };
   }
 

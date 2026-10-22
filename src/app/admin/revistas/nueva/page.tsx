@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { uploadMagazine } from "../../actions";
 
 // Deben coincidir con los límites del server action
 const MAX_PDF_BYTES = 50 * 1024 * 1024;
@@ -101,25 +100,31 @@ export default function NuevaRevistaPage() {
         setLoading(true);
 
         try {
-            const result = await uploadMagazine(formData);
+            const response = await fetch("/api/admin/revistas", {
+                method: "POST",
+                body: formData,
+                signal: AbortSignal.timeout(120_000),
+            });
+            const result: { error?: string; success?: boolean } = await response.json();
 
-            if (result?.error) {
-                setError(result.error);
-            } else {
+            if (!response.ok || result.error) {
+                setError(result.error ?? "No se pudo publicar la revista.");
+            } else if (result.success) {
                 setSuccess(true);
                 formRef.current?.reset();
                 setCoverPreview("");
                 setPdfName("");
                 setExtractedCoverBlob(null);
                 setCoverSource("none");
+            } else {
+                setError("El servidor no confirmó la publicación. Revisa la lista de revistas antes de volver a intentarlo.");
             }
-        } catch {
-            // Sin esto, un fallo de red o del servidor dejaba el botón en
-            // "Subiendo..." para siempre y sin ningún mensaje de error.
-            setError(
-                "No se pudo publicar la revista. Revisa tu conexión a internet e inténtalo de nuevo. " +
-                "Si el problema continúa, recarga la página y vuelve a iniciar sesión."
-            );
+        } catch (error) {
+            if (error instanceof DOMException && error.name === "TimeoutError") {
+                setError("La solicitud tardó más de 2 minutos. Revisa la lista de revistas antes de volver a intentarlo.");
+            } else {
+                setError("No se recibió respuesta del servidor. Revisa la lista de revistas antes de volver a intentarlo.");
+            }
         } finally {
             setLoading(false);
         }

@@ -10,7 +10,6 @@ import { uploadToNeubox } from "@/lib/storage/neubox";
 type ActionResult = { error?: string; success?: boolean };
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8 MB
-const MAX_PDF_BYTES = 50 * 1024 * 1024; // 50 MB
 const MAX_TITLE_LENGTH = 200;
 const MAX_SUMMARY_LENGTH = 500;
 // HTML grande casi siempre significa imágenes pegadas como base64 dentro del editor
@@ -94,23 +93,6 @@ function validateImage(file: File): { ext: string } | { error: string } {
         return { error: `La imagen pesa ${mb} MB y el máximo es 8 MB. Comprímela e inténtalo de nuevo.` };
     }
     return { ext };
-}
-
-async function isPdfFile(file: File): Promise<boolean> {
-    const name = file.name.toLowerCase();
-    if (name.endsWith(".pdf")) return true;
-
-    const mime = file.type.toLowerCase();
-    if (mime === "application/pdf" || mime === "application/octet-stream") {
-        try {
-            const header = new Uint8Array(await file.slice(0, 5).arrayBuffer());
-            return header.length >= 5 && header[0] === 0x25 && header[1] === 0x50 && header[2] === 0x44 && header[3] === 0x46 && header[4] === 0x2d;
-        } catch {
-            return false;
-        }
-    }
-
-    return false;
 }
 
 // Backstop server-side: la sanitización principal ocurre en el cliente con
@@ -199,73 +181,6 @@ export async function uploadNews(formData: FormData): Promise<ActionResult> {
         console.error("uploadNews failed:", err);
         const message = err instanceof Error ? err.message : "Error desconocido";
         return { error: `Ocurrió un error al publicar la nota: ${message}` };
-    }
-}
-
-export async function uploadMagazine(formData: FormData): Promise<ActionResult> {
-    try {
-        const auth = await requireAdmin();
-        if ("error" in auth) return { error: auth.error };
-
-        const title = getString(formData, "title");
-        const description = getString(formData, "description");
-        const edition = getString(formData, "edition");
-        const is_featured = formData.get("is_featured") === "on";
-
-        if (!title) return { error: "El título es obligatorio." };
-        if (title.length > MAX_TITLE_LENGTH) return { error: `El título supera los ${MAX_TITLE_LENGTH} caracteres.` };
-
-        const coverFile = formData.get("coverImage");
-        const pdfFile = formData.get("pdfFile");
-
-        let cover_image_url = "";
-        let pdf_url = "";
-
-        if (coverFile instanceof File && coverFile.size > 0) {
-            const validation = validateImage(coverFile);
-            if ("error" in validation) return { error: validation.error };
-
-            const fileName = `${Date.now()}-cover-${generateSlug(title)}.${validation.ext}`;
-            const upload = await uploadToNeubox(coverFile, "magazines", fileName);
-            if ("error" in upload) return { error: `No se pudo subir la portada: ${upload.error}` };
-            cover_image_url = upload.url;
-        }
-
-        if (pdfFile instanceof File && pdfFile.size > 0) {
-            const isPdf = await isPdfFile(pdfFile);
-            if (!isPdf) {
-                return { error: "El archivo de la revista debe ser un PDF válido." };
-            }
-            if (pdfFile.size > MAX_PDF_BYTES) {
-                const mb = (pdfFile.size / 1024 / 1024).toFixed(0);
-                return { error: `El PDF pesa ${mb} MB y el máximo es 50 MB.` };
-            }
-            const fileName = `${Date.now()}-pdf-${generateSlug(title)}.pdf`;
-            const upload = await uploadToNeubox(pdfFile, "magazines", fileName);
-            if ("error" in upload) return { error: `No se pudo subir el PDF: ${upload.error}` };
-            pdf_url = upload.url;
-        }
-
-        if (!pdf_url) return { error: "El PDF de la revista es obligatorio." };
-
-        try {
-            await execute(
-                `INSERT INTO magazines
-                    (id, title, description, edition, cover_image_url, pdf_url, is_featured, published_at, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [crypto.randomUUID(), title, description, edition, cover_image_url, pdf_url, is_featured, new Date(), new Date()]
-            );
-        } catch (err) {
-            return { error: `No se pudo guardar la revista: ${err instanceof Error ? err.message : String(err)}` };
-        }
-
-        revalidatePath("/revistas", "layout");
-        revalidatePath("/", "layout");
-        return { success: true };
-    } catch (err) {
-        console.error("uploadMagazine failed:", err);
-        const message = err instanceof Error ? err.message : "Error desconocido";
-        return { error: `Ocurrió un error al publicar la revista: ${message}` };
     }
 }
 
