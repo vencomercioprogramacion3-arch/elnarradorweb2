@@ -2,6 +2,7 @@ import { getMagazineById } from "@/lib/db/magazines";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import ShareButtonsMagazine from "./ShareButtonsMagazine";
+import MagazinePdfViewer from "./MagazinePdfViewer";
 
 export const revalidate = 300;
 
@@ -83,39 +84,12 @@ export default async function MagazineViewPage({ params }: Props) {
               year: "numeric",
             })}
           </time>
-          <a
-            href={magazine.pdf_url}
-            download
-            className="inline-flex items-center gap-2 bg-gold text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gold-dark transition-colors duration-200 cursor-pointer"
-          >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={2}
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"
-              />
-            </svg>
-            Descargar PDF
-          </a>
           <ShareButtonsMagazine title={magazine.title} />
         </div>
         <div className="h-px bg-border mt-6" />
       </div>
 
-      {/* PDF Viewer */}
-      <div className="bg-surface border border-border rounded-lg overflow-hidden">
-        <iframe
-          src={`${magazine.pdf_url}#toolbar=1&navpanes=0`}
-          className="w-full h-[80vh] min-h-[600px]"
-          title={magazine.title}
-        />
-      </div>
+      <MagazinePdfViewer id={magazine.id} title={magazine.title} />
     </div>
   );
 }
