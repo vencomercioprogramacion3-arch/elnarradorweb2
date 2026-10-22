@@ -1,6 +1,8 @@
 @import "tailwindcss";
 
 :root {
+  --font-newsreader: "Newsreader Variable";
+  --font-inter: "Inter Variable";
   --background: #F5F5F0;
   --foreground: #0C0A09;
   --primary: #1C1917;

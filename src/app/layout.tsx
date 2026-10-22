@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { Newsreader, Inter } from "next/font/google";
+import "@fontsource-variable/inter";
+import "@fontsource-variable/newsreader";
 import "./globals.css";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
@@ -9,20 +10,6 @@ import SwgScript from "@/components/ads/SwgScript";
 import { ADSENSE_CLIENT_ID } from "@/lib/ads/config";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://elnarradordemexico.com";
-
-const newsreader = Newsreader({
-  variable: "--font-newsreader",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
-});
-
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -110,9 +97,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://i0.wp.com" />
         <link rel="dns-prefetch" href="https://i0.wp.com" />
       </head>
-      <body
-        className={`${newsreader.variable} ${inter.variable} font-body antialiased bg-background text-foreground`}
-      >
+      <body className="font-body antialiased bg-background text-foreground">
         <WebsiteJsonLd />
         <AdminLayoutGuard>
           {children}

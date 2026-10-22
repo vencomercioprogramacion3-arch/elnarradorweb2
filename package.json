@@ -14,6 +14,8 @@
     "deploy": "npx @opennextjs/cloudflare build && npx @opennextjs/cloudflare deploy"
   },
   "dependencies": {
+    "@fontsource-variable/inter": "5.3.0",
+    "@fontsource-variable/newsreader": "5.3.0",
     "@tailwindcss/postcss": "^4.2.1",
     "dompurify": "^3.4.8",
     "esbuild": "^0.27.3",
