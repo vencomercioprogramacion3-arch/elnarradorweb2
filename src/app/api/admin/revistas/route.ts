@@ -1,53 +1,44 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth/session";
-import { execute } from "@/lib/db/mysql";
-import { uploadToNeubox } from "@/lib/storage/neubox";
+import { execute, query } from "@/lib/db/mysql";
+import { uploadMagazineAsset } from "@/lib/storage/magazine-uploads";
 
-const MAX_PDF_BYTES = 50 * 1024 * 1024;
-const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const MAX_TITLE_LENGTH = 200;
-
-const ALLOWED_IMAGE_TYPES: Record<string, string> = {
-    "image/jpeg": "jpg",
-    "image/jpg": "jpg",
-    "image/pjpeg": "jpg",
-    "image/png": "png",
-    "image/x-png": "png",
-    "image/webp": "webp",
-    "image/gif": "gif",
-    "image/avif": "avif",
-};
 
 function getString(formData: FormData, key: string): string {
     const value = formData.get(key);
     return typeof value === "string" ? value.trim() : "";
 }
 
-function generateSlug(title: string) {
-    return title
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)+/g, "");
-}
-
-function getImageExtension(file: File): string | null {
-    const mime = file.type.toLowerCase();
-    if (mime in ALLOWED_IMAGE_TYPES) return ALLOWED_IMAGE_TYPES[mime];
-
-    const name = file.name.toLowerCase();
-    if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return "jpg";
-    if (name.endsWith(".png")) return "png";
-    if (name.endsWith(".webp")) return "webp";
-    if (name.endsWith(".gif")) return "gif";
-    if (name.endsWith(".avif")) return "avif";
-    return null;
-}
-
 function jsonError(error: string, status: number) {
     return NextResponse.json({ error }, { status });
+}
+
+export async function GET() {
+    const auth = await requireAdmin();
+    if ("error" in auth) return jsonError(auth.error, 401);
+
+    try {
+        const magazines = await query<{
+            id: string;
+            title: string;
+            description: string;
+            edition: string;
+            cover_image_url: string;
+            pdf_url: string;
+            is_featured: boolean;
+            published_at: string;
+        }>(
+            `SELECT id, title, description, edition, cover_image_url, pdf_url, is_featured, published_at
+             FROM magazines
+             ORDER BY published_at DESC`
+        );
+        return NextResponse.json({ magazines });
+    } catch (error) {
+        console.error("GET /api/admin/revistas failed:", error);
+        return jsonError("No se pudo cargar la lista de revistas.", 500);
+    }
 }
 
 export async function POST(request: Request) {
@@ -77,47 +68,14 @@ export async function POST(request: Request) {
         let pdfUrl = "";
 
         if (coverFile instanceof File && coverFile.size > 0) {
-            const extension = getImageExtension(coverFile);
-            if (!extension) {
-                return jsonError(
-                    `Formato de imagen no permitido (${coverFile.type || "desconocido"}). Usa JPG, PNG, WebP, GIF o AVIF.`,
-                    400
-                );
-            }
-            if (coverFile.size > MAX_IMAGE_BYTES) {
-                const mb = (coverFile.size / 1024 / 1024).toFixed(1);
-                return jsonError(`La portada pesa ${mb} MB y el máximo es 8 MB.`, 400);
-            }
-
-            const fileName = `${Date.now()}-cover-${generateSlug(title)}.${extension}`;
-            const upload = await uploadToNeubox(coverFile, "magazines", fileName);
-            if ("error" in upload) return jsonError(`No se pudo subir la portada: ${upload.error}`, 502);
+            const upload = await uploadMagazineAsset(coverFile, "cover", title);
+            if ("error" in upload) return jsonError(`No se pudo subir la portada: ${upload.error}`, upload.status);
             coverImageUrl = upload.url;
         }
 
         if (pdfFile instanceof File && pdfFile.size > 0) {
-            if (!pdfFile.name.toLowerCase().endsWith(".pdf")) {
-                return jsonError("El archivo de la revista debe ser un PDF válido.", 400);
-            }
-            if (pdfFile.size > MAX_PDF_BYTES) {
-                const mb = (pdfFile.size / 1024 / 1024).toFixed(0);
-                return jsonError(`El PDF pesa ${mb} MB y el máximo es 50 MB.`, 400);
-            }
-            const signature = new Uint8Array(await pdfFile.slice(0, 5).arrayBuffer());
-            if (
-                signature.length < 5 ||
-                signature[0] !== 0x25 ||
-                signature[1] !== 0x50 ||
-                signature[2] !== 0x44 ||
-                signature[3] !== 0x46 ||
-                signature[4] !== 0x2d
-            ) {
-                return jsonError("El archivo de la revista debe ser un PDF válido.", 400);
-            }
-
-            const fileName = `${Date.now()}-pdf-${generateSlug(title)}.pdf`;
-            const upload = await uploadToNeubox(pdfFile, "magazines", fileName);
-            if ("error" in upload) return jsonError(`No se pudo subir el PDF: ${upload.error}`, 502);
+            const upload = await uploadMagazineAsset(pdfFile, "pdf", title);
+            if ("error" in upload) return jsonError(`No se pudo subir el PDF: ${upload.error}`, upload.status);
             pdfUrl = upload.url;
         }
 

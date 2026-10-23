@@ -33,6 +33,7 @@ export default async function AdminDashboard() {
     const quickActions = [
         { label: "Nueva Nota", href: "/admin/notas/nueva", icon: "✏️", desc: "Publicar un artículo", bg: "bg-gray-900 text-white hover:bg-gray-800" },
         { label: "Nueva Revista", href: "/admin/revistas/nueva", icon: "📖", desc: "Subir PDF de revista", bg: "bg-green-600 text-white hover:bg-green-700" },
+        { label: "Editar revistas subidas", href: "/admin/revistas/editar", icon: "📝", desc: "Buscar y corregir una edición publicada", bg: "bg-white text-gray-900 border border-gray-200 hover:bg-gray-50" },
         { label: "Ver Notas", href: "/admin/notas", icon: "📋", desc: "Administrar artículos", bg: "bg-white text-gray-900 border border-gray-200 hover:bg-gray-50" },
         { label: "Migración WP", href: "/admin/migrate", icon: "🔄", desc: "Importar de WordPress", bg: "bg-white text-gray-900 border border-gray-200 hover:bg-gray-50" },
     ];

@@ -86,6 +86,7 @@ export default async function AdminLayout({
                         Revistas
                     </div>
                     <NavLink href="/admin/revistas/nueva" label="📖 Nueva Revista" />
+                    <NavLink href="/admin/revistas/editar" label="📝 Editar revistas subidas" />
                     <div style={{ padding: "0.75rem 0.75rem 0.25rem", fontSize: "0.7rem", color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                         Herramientas
                     </div>
