@@ -118,3 +118,35 @@ export async function PATCH(request: Request, { params }: Props) {
     );
   }
 }
+
+export async function DELETE(request: Request, { params }: Props) {
+  const origin = request.headers.get("origin");
+  if (!origin || origin !== new URL(request.url).origin) {
+    return jsonError("Origen de solicitud no válido.", 403);
+  }
+
+  const auth = await requireAdmin();
+  if ("error" in auth) return jsonError(auth.error, 401);
+
+  try {
+    const { id } = await params;
+    const magazine = await queryOne<{ id: string }>(
+      "SELECT id FROM magazines WHERE id = ?",
+      [id]
+    );
+    if (!magazine) return jsonError("No se encontró la revista que quieres eliminar.", 404);
+
+    await execute("DELETE FROM magazines WHERE id = ?", [id]);
+
+    revalidatePath("/revistas", "layout");
+    revalidatePath(`/revistas/${id}`);
+    revalidatePath("/", "layout");
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("DELETE /api/admin/revistas/[id] failed:", error);
+    return jsonError(
+      `No se pudo eliminar la revista: ${error instanceof Error ? error.message : String(error)}`,
+      500
+    );
+  }
+}

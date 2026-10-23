@@ -44,6 +44,9 @@ export default function EditarRevistasPage() {
   const [isFeatured, setIsFeatured] = useState(false);
   const [loadingList, setLoadingList] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -143,6 +146,49 @@ export default function EditarRevistasPage() {
       );
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!selectedMagazine || deleteConfirmation !== "ELIMINAR") return;
+    setDeleting(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const response = await fetch(
+        `/api/admin/revistas/${encodeURIComponent(selectedMagazine.id)}`,
+        {
+          method: "DELETE",
+          signal: AbortSignal.timeout(30_000),
+        }
+      );
+      const result: { success?: boolean; error?: string } = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error ?? "No se pudo eliminar la revista.");
+      }
+
+      setMagazines((current) =>
+        current.filter((magazine) => magazine.id !== selectedMagazine.id)
+      );
+      setSelectedId("");
+      setTitle("");
+      setEdition("");
+      setDescription("");
+      setIsFeatured(false);
+      setShowDeleteConfirmation(false);
+      setDeleteConfirmation("");
+      setSuccess(
+        "La revista se eliminó del sitio. Los archivos originales siguen guardados en el hosting."
+      );
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "No se pudo eliminar la revista. Inténtalo de nuevo."
+      );
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -383,8 +429,87 @@ export default function EditarRevistasPage() {
               </button>
             </form>
           )}
+          {selectedMagazine && (
+            <div className="mt-8 border-t border-red-200 pt-5">
+              <h3 className="font-semibold text-red-800">Eliminar esta revista del sitio</h3>
+              <p className="mt-1 text-sm text-gray-600">
+                La revista dejará de aparecer en la página pública. Esta acción no se puede
+                deshacer desde el panel; sus archivos permanecerán en el hosting.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteConfirmation("");
+                  setShowDeleteConfirmation(true);
+                  setError("");
+                }}
+                disabled={saving || deleting}
+                className="mt-3 rounded-lg border border-red-300 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Eliminar revista publicada
+              </button>
+            </div>
+          )}
         </section>
       </div>
+
+      {showDeleteConfirmation && selectedMagazine && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !deleting) {
+              setShowDeleteConfirmation(false);
+            }
+          }}
+        >
+          <section
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-magazine-title"
+            aria-describedby="delete-magazine-description"
+            className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl"
+          >
+            <h2 id="delete-magazine-title" className="text-xl font-bold text-red-800">
+              Confirmar eliminación
+            </h2>
+            <p id="delete-magazine-description" className="mt-3 text-sm text-gray-700">
+              Vas a quitar <strong>{selectedMagazine.title}</strong> de las revistas publicadas.
+              Esta acción no se puede deshacer desde el panel. Las imágenes y el PDF seguirán
+              almacenados en el hosting, pero la ficha dejará de estar disponible en el sitio.
+            </p>
+            <label htmlFor="delete-magazine-confirmation" className="mt-5 block text-sm font-medium text-gray-700">
+              Escribe <strong>ELIMINAR</strong> para confirmar.
+            </label>
+            <input
+              id="delete-magazine-confirmation"
+              autoFocus
+              value={deleteConfirmation}
+              onChange={(event) => setDeleteConfirmation(event.target.value)}
+              disabled={deleting}
+              className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2"
+            />
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirmation(false)}
+                disabled={deleting}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleting || deleteConfirmation !== "ELIMINAR"}
+                className="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {deleting ? "Eliminando..." : "Confirmar eliminación"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
 
       <p className="mt-6 text-sm text-gray-500">
         ¿Necesitas publicar otra edición?{" "}
