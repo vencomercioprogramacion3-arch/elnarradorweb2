@@ -1,8 +1,9 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth/session";
-import { execute, queryOne } from "@/lib/db/mysql";
+import { execute, query, queryOne } from "@/lib/db/mysql";
 import { uploadMagazineAsset } from "@/lib/storage/magazine-uploads";
+import { deleteMagazineFiles } from "@/lib/storage/neubox";
 
 const MAX_TITLE_LENGTH = 200;
 
@@ -130,18 +131,66 @@ export async function DELETE(request: Request, { params }: Props) {
 
   try {
     const { id } = await params;
-    const magazine = await queryOne<{ id: string }>(
-      "SELECT id FROM magazines WHERE id = ?",
+    const magazine = await queryOne<{
+      id: string;
+      cover_image_url: string;
+      pdf_url: string;
+    }>(
+      "SELECT id, cover_image_url, pdf_url FROM magazines WHERE id = ?",
       [id]
     );
     if (!magazine) return jsonError("No se encontró la revista que quieres eliminar.", 404);
 
-    await execute("DELETE FROM magazines WHERE id = ?", [id]);
+    const otherMagazines = await query<{
+      cover_image_url: string;
+      pdf_url: string;
+    }>(
+      `SELECT cover_image_url, pdf_url
+       FROM magazines
+       WHERE id <> ?`,
+      [id]
+    );
+    const magazineUrls = [
+      ...new Set([magazine.cover_image_url, magazine.pdf_url].filter(Boolean)),
+    ];
+    const sharedUrls = new Set(
+      magazineUrls.filter((url) =>
+        otherMagazines.some(
+          (other) => other.cover_image_url === url || other.pdf_url === url
+        )
+      )
+    );
+    const urlsToDelete = magazineUrls.filter((url) => !sharedUrls.has(url));
+
+    const fileCleanup = await deleteMagazineFiles(urlsToDelete);
+    if (fileCleanup.failed) {
+      console.error("Magazine media cleanup failed:", fileCleanup.warnings);
+      return NextResponse.json(
+        {
+          error: "No se eliminó la revista porque Neubox no confirmó el borrado de sus archivos.",
+          details: fileCleanup.warnings,
+        },
+        { status: 502 }
+      );
+    }
+
+    const deleteResult = await execute("DELETE FROM magazines WHERE id = ?", [id]);
+    if (deleteResult.affectedRows !== 1) {
+      console.error("Magazine record was not deleted after media cleanup:", id);
+      return jsonError(
+        "Los archivos se limpiaron, pero no se pudo eliminar la ficha. Actualiza la página y vuelve a intentarlo.",
+        500
+      );
+    }
 
     revalidatePath("/revistas", "layout");
     revalidatePath(`/revistas/${id}`);
     revalidatePath("/", "layout");
-    return NextResponse.json({ success: true });
+    const warnings = [...fileCleanup.warnings];
+    if (sharedUrls.size > 0) {
+      warnings.push("Se conservaron archivos que también utiliza otra revista.");
+    }
+    return NextResponse.json({ success: true, warnings });
   } catch (error) {
     console.error("DELETE /api/admin/revistas/[id] failed:", error);
     return jsonError(

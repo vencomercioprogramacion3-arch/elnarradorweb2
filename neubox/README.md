@@ -101,6 +101,9 @@ Copia el `id` que te devuelve en el bloque `[[hyperdrive]]` de
 1. Con el **Administrador de archivos** de cPanel (o FTP) sube el contenido de
    `neubox/media/` a `public_html/media/` (incluye los archivos que empiezan
    con punto: `.htaccess` y `.user.ini`).
+   Cada vez que se actualice `neubox/media/upload.php` en el repositorio,
+   reemplaza también ese archivo en Neubox para habilitar la versión actual de
+   las subidas y la eliminación segura de archivos.
 2. Copia `config.example.php` como `config.php` y rellena:
    - `UPLOAD_KEY`: una clave aleatoria larga (p.ej. `openssl rand -hex 32`).
    - `PUBLIC_BASE_URL`: `https://tudominio.com/media`.
@@ -139,8 +142,14 @@ npm run deploy
 ```
 
 Revisa: portada, una categoría, una nota, búsqueda, `/revistas`, y en
-`/admin`: iniciar sesión, publicar una nota con imagen, subir una revista,
-marcar destacada / última hora, borrar una nota y agregar un usuario.
+`/admin`: iniciar sesión, publicar una nota con imagen, subir, editar y eliminar
+una revista, marcar destacada / última hora, borrar una nota y agregar un usuario.
+
+Al eliminar una revista desde el panel, el sitio elimina su registro y solicita
+a `upload.php` borrar sus archivos exclusivos de `uploads/magazines/`. Los
+archivos compartidos con otra revista se conservan. Las URLs antiguas de
+almacenamientos externos, como Supabase, no se eliminan desde Neubox y el panel
+avisa si quedan archivos externos.
 
 ## Imágenes del WordPress anterior
 

@@ -83,7 +83,7 @@ export default function Navbar() {
       </div>
 
       {/* Categories bar */}
-      <nav className="bg-primary border-b-2 border-gold">
+      <nav className="bg-[#1C1917] border-b-2 border-gold">
         <div className="max-w-7xl mx-auto px-4">
           <div className="hidden md:flex items-center gap-1 overflow-x-auto">
             {categories.map((cat) => (

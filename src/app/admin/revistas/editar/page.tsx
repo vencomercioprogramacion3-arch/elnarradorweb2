@@ -49,6 +49,7 @@ export default function EditarRevistasPage() {
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [notice, setNotice] = useState("");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -96,6 +97,7 @@ export default function EditarRevistasPage() {
     setIsFeatured(Boolean(magazine.is_featured));
     setError("");
     setSuccess("");
+    setNotice("");
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -105,6 +107,7 @@ export default function EditarRevistasPage() {
     setSaving(true);
     setError("");
     setSuccess("");
+    setNotice("");
 
     try {
       const formData = new FormData(form);
@@ -154,6 +157,7 @@ export default function EditarRevistasPage() {
     setDeleting(true);
     setError("");
     setSuccess("");
+    setNotice("");
 
     try {
       const response = await fetch(
@@ -163,9 +167,17 @@ export default function EditarRevistasPage() {
           signal: AbortSignal.timeout(30_000),
         }
       );
-      const result: { success?: boolean; error?: string } = await response.json();
+      const result: {
+        success?: boolean;
+        error?: string;
+        details?: string[];
+        warnings?: string[];
+      } = await response.json();
       if (!response.ok || !result.success) {
-        throw new Error(result.error ?? "No se pudo eliminar la revista.");
+        throw new Error(
+          [result.error, ...(result.details ?? [])].filter(Boolean).join(" ") ||
+            "No se pudo eliminar la revista."
+        );
       }
 
       setMagazines((current) =>
@@ -178,8 +190,11 @@ export default function EditarRevistasPage() {
       setIsFeatured(false);
       setShowDeleteConfirmation(false);
       setDeleteConfirmation("");
-      setSuccess(
-        "La revista se eliminó del sitio. Los archivos originales siguen guardados en el hosting."
+      setSuccess("La ficha de la revista se eliminó del sitio.");
+      setNotice(
+        result.warnings?.length
+          ? result.warnings.join(" ")
+          : "Los archivos exclusivos de Neubox se eliminaron. Los archivos compartidos con otra revista se conservaron."
       );
     } catch (deleteError) {
       setError(
@@ -226,6 +241,11 @@ export default function EditarRevistasPage() {
       {success && (
         <div role="status" className="mb-5 rounded-lg border border-green-200 bg-green-50 p-4 text-green-800">
           {success}
+        </div>
+      )}
+      {notice && (
+        <div role="status" className="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900">
+          {notice}
         </div>
       )}
 
@@ -433,8 +453,9 @@ export default function EditarRevistasPage() {
             <div className="mt-8 border-t border-red-200 pt-5">
               <h3 className="font-semibold text-red-800">Eliminar esta revista del sitio</h3>
               <p className="mt-1 text-sm text-gray-600">
-                La revista dejará de aparecer en la página pública. Esta acción no se puede
-                deshacer desde el panel; sus archivos permanecerán en el hosting.
+                La revista dejará de aparecer en el sitio y se intentarán borrar sus archivos
+                almacenados en Neubox. Los archivos compartidos con otra revista se conservarán.
+                Esta acción no se puede deshacer desde el panel.
               </p>
               <button
                 type="button"
@@ -475,8 +496,9 @@ export default function EditarRevistasPage() {
             </h2>
             <p id="delete-magazine-description" className="mt-3 text-sm text-gray-700">
               Vas a quitar <strong>{selectedMagazine.title}</strong> de las revistas publicadas.
-              Esta acción no se puede deshacer desde el panel. Las imágenes y el PDF seguirán
-              almacenados en el hosting, pero la ficha dejará de estar disponible en el sitio.
+              También se eliminarán los archivos exclusivos de esta revista alojados en Neubox.
+              Los archivos compartidos se conservarán; los almacenados fuera de Neubox podrían
+              requerir eliminación manual.
             </p>
             <label htmlFor="delete-magazine-confirmation" className="mt-5 block text-sm font-medium text-gray-700">
               Escribe <strong>ELIMINAR</strong> para confirmar.

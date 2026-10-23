@@ -35,6 +35,87 @@ if (!is_string($providedKey) || !hash_equals(UPLOAD_KEY, $providedKey)) {
     fail(401, 'No autorizado.');
 }
 
+$action = $_POST['action'] ?? 'upload';
+if ($action === 'delete') {
+    $folder = $_POST['folder'] ?? '';
+    $urlsJson = $_POST['urls'] ?? '';
+    $urls = is_string($urlsJson) ? json_decode($urlsJson, true) : null;
+    if ($folder !== 'magazines' || !is_array($urls) || count($urls) > 2) {
+        fail(400, 'Solicitud de eliminación no válida.');
+    }
+
+    $base = parse_url(PUBLIC_BASE_URL);
+    if (
+        !is_array($base) ||
+        ($base['scheme'] ?? '') !== 'https' ||
+        empty($base['host']) ||
+        isset($base['user']) ||
+        isset($base['pass']) ||
+        isset($base['port']) ||
+        isset($base['query']) ||
+        isset($base['fragment'])
+    ) {
+        fail(500, 'PUBLIC_BASE_URL no es válida para eliminar archivos.');
+    }
+
+    $basePath = rtrim($base['path'] ?? '', '/');
+    $expectedPrefix = $basePath . '/uploads/magazines/';
+    $files = [];
+    foreach ($urls as $url) {
+        if (!is_string($url)) {
+            fail(400, 'La dirección del archivo no es válida.');
+        }
+        $parsed = parse_url($url);
+        $path = is_array($parsed) ? ($parsed['path'] ?? '') : '';
+        $filename = strpos($path, $expectedPrefix) === 0
+            ? substr($path, strlen($expectedPrefix))
+            : '';
+
+        if (
+            !is_array($parsed) ||
+            ($parsed['scheme'] ?? '') !== 'https' ||
+            strtolower($parsed['host'] ?? '') !== strtolower($base['host']) ||
+            isset($parsed['user']) ||
+            isset($parsed['pass']) ||
+            isset($parsed['port']) ||
+            isset($parsed['query']) ||
+            isset($parsed['fragment']) ||
+            !preg_match('/^[a-z0-9][a-z0-9._-]{0,180}\.(jpg|jpeg|png|webp|gif|avif|pdf)$/i', $filename)
+        ) {
+            fail(400, 'La dirección del archivo no pertenece a la carpeta de revistas.');
+        }
+        $files[$filename] = $filename;
+    }
+
+    $directory = realpath(__DIR__ . '/uploads/magazines');
+    if ($directory === false) {
+        fail(500, 'No se encontró la carpeta de revistas en el hosting.');
+    }
+
+    $deleted = [];
+    $errors = [];
+    foreach ($files as $filename) {
+        $target = $directory . DIRECTORY_SEPARATOR . $filename;
+        if (!is_file($target)) {
+            $deleted[] = rtrim(PUBLIC_BASE_URL, '/') . '/uploads/magazines/' . $filename;
+            continue;
+        }
+        if (unlink($target)) {
+            $deleted[] = rtrim(PUBLIC_BASE_URL, '/') . '/uploads/magazines/' . $filename;
+        } else {
+            $errors[] = 'No se pudo eliminar ' . $filename . '.';
+        }
+    }
+
+    http_response_code($errors ? 500 : 200);
+    echo json_encode(['deleted' => $deleted, 'errors' => $errors]);
+    exit;
+}
+
+if ($action !== 'upload') {
+    fail(400, 'Acción no válida.');
+}
+
 $folder = $_POST['folder'] ?? '';
 if (!in_array($folder, ['news', 'magazines'], true)) {
     fail(400, 'Carpeta no válida.');

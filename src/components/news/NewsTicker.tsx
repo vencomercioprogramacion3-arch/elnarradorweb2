@@ -25,7 +25,7 @@ export default function NewsTicker({ articles }: NewsTickerProps) {
   if (articles.length === 0) return null;
 
   return (
-    <div className="bg-primary text-white border-b border-gold/30">
+    <div className="bg-[#1C1917] text-white border-b border-gold/30">
       <div className="max-w-7xl mx-auto px-4 py-2.5 flex items-center gap-4">
         {/* Badge */}
         <span className="shrink-0 bg-accent-red text-white text-[10px] font-bold px-3 py-1 rounded-sm uppercase tracking-wider animate-pulse">
